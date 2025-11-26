@@ -17,7 +17,7 @@ CORS(app, origins=[
     "https://twende-frontend.onrender.com"
 ])
 
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "postgresql://postgres:173@localhost:5432/twende_tours")
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "postgresql://localhost/twende_tours")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
