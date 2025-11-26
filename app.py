@@ -27,7 +27,7 @@ app.register_blueprint(tours_bp)
 def root():
     return jsonify({"message": "Twende Tours API running"})
 
-@app. route("/health")
+@app.route("/health")
 def health():
     return jsonify({"status": "healthy"})
 
@@ -35,4 +35,6 @@ with app.app_context():
     db.create_all()
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000, host="127.0.0.1")
+    port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("FLASK_ENV", "development") == "development"
+    app.run(debug=debug, port=port, host="0.0.0.0")
