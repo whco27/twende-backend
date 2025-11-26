@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from models.tour import db, Tour
+from werkzeug.exceptions import NotFound
 
 tours_bp = Blueprint('tours', __name__, url_prefix='/api/tours')
 
@@ -18,8 +19,10 @@ def get_tour(tour_id):
     try:
         tour = Tour.query.get_or_404(tour_id)
         return jsonify(tour.to_dict()), 200
+    except NotFound:
+        return jsonify({'error': 'Tour not found'}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), 404
+        return jsonify({'error': str(e)}), 500
 
 @tours_bp.route('/', methods=['POST'])
 def create_tour():
@@ -83,6 +86,8 @@ def update_tour(tour_id):
         db.session.commit()
         
         return jsonify(tour.to_dict()), 200
+    except NotFound:
+        return jsonify({'error': 'Tour not found'}), 404
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -96,6 +101,8 @@ def delete_tour(tour_id):
         db.session.commit()
         
         return jsonify({'message': 'Tour deleted successfully'}), 200
+    except NotFound:
+        return jsonify({'error': 'Tour not found'}), 404
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
