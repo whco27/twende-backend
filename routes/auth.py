@@ -152,7 +152,7 @@ def register():
             db.session.add(new_user)
             db.session.commit()
             logger.info(f"User registered successfully: id={new_user.id}")
-        except IntegrityError as e:
+        except IntegrityError:
             # Handle race condition: another request inserted the same email
             # between our check and insert
             db.session.rollback()
