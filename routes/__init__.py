@@ -89,8 +89,8 @@ def get_tour_by_title(title):
                 'tour': tour.to_dict()
             }), 200
         
-        # Tour not found - provide helpful guidance
-        available_tours = Tour.query.with_entities(Tour.title).all()
+        # Tour not found - provide helpful guidance (limit suggestions for performance)
+        available_tours = Tour.query.with_entities(Tour.title).limit(10).all()
         available_titles = [t.title for t in available_tours]
         
         return jsonify({
@@ -122,7 +122,8 @@ def create_tour():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Check if tour with same title already exists
+        # Check if tour with same title already exists (provides better error response)
+        # Note: IntegrityError catch below handles race condition at database level
         existing_tour = Tour.query.filter(Tour.title == data['title']).first()
         if existing_tour:
             return jsonify({
