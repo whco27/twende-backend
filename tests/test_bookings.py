@@ -1,10 +1,4 @@
 """Tests for booking routes"""
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app import app, db
-from models import Booking
 
 
 def test_create_booking(client, sample_user, sample_tour):
@@ -87,3 +81,17 @@ def test_booking_insufficient_slots(client, sample_user, sample_tour):
     response = client.post('/api/bookings/', json=booking_data)
     assert response.status_code == 400
     assert 'slots' in response.get_json()['error'].lower()
+
+
+def test_booking_invalid_guests(client, sample_user, sample_tour):
+    """Test booking with invalid number_of_guests value"""
+    booking_data = {
+        'user_id': sample_user,
+        'tour_id': sample_tour,
+        'tour_date': '2024-06-15',
+        'number_of_guests': 'invalid'
+    }
+    response = client.post('/api/bookings/', json=booking_data)
+    assert response.status_code == 400
+    assert 'invalid' in response.get_json()['error'].lower()
+

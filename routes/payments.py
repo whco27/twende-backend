@@ -323,16 +323,22 @@ def check_payment_status(checkout_request_id):
                 result = daraja.query_stk_status(checkout_request_id)
                 result_code = result.get('ResultCode')
 
-                if result_code == '0' or result_code == 0:
+                # Normalize result_code to string for consistent comparison
+                result_code_str = str(result_code) if result_code is not None else None
+
+                if result_code_str == '0':
                     payment.status = 'completed'
                     booking = db.session.get(Booking, payment.booking_id)
                     if booking:
                         booking.payment_status = 'paid'
                         booking.status = 'confirmed'
                     db.session.commit()
-                elif result_code:
+                elif result_code_str:
                     payment.status = 'failed'
-                    payment.result_code = int(result_code) if result_code else None
+                    try:
+                        payment.result_code = int(result_code_str)
+                    except (ValueError, TypeError):
+                        payment.result_code = None
                     payment.result_description = result.get('ResultDesc')
                     db.session.commit()
             except Exception:

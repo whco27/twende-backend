@@ -95,7 +95,20 @@ def create_booking():
                 'error': 'Tour not found'
             }), 404
 
-        number_of_guests = int(data['number_of_guests'])
+        # Validate number_of_guests
+        try:
+            number_of_guests = int(data['number_of_guests'])
+            if number_of_guests < 1:
+                return jsonify({
+                    'success': False,
+                    'error': 'Number of guests must be at least 1'
+                }), 400
+        except (ValueError, TypeError):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid number_of_guests value'
+            }), 400
+
         if tour.available_slots < number_of_guests:
             return jsonify({
                 'success': False,

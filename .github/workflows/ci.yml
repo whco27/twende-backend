@@ -98,10 +98,10 @@ jobs:
           DATABASE_URL: sqlite:///:memory:
           FLASK_ENV: production
         run: |
-          timeout 5 python -c "
+          python -c "
           from app import app
           with app.test_client() as client:
               response = client.get('/health')
               assert response.status_code == 200
               print('Health check passed')
-          " || true
+          "

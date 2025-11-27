@@ -1,10 +1,4 @@
 """Tests for payment routes"""
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from app import app, db
-from models import Booking
 
 
 def test_initiate_payment_missing_data(client):
