@@ -1,6 +1,7 @@
 """Authentication routes for user registration and login"""
 from flask import Blueprint, jsonify, request
 from models import db, User
+from services.notifications import notification_service
 import re
 import logging
 
@@ -149,6 +150,21 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         logger.info(f"User registered successfully: id={new_user.id}")
+
+        # Send notification emails (non-blocking - failures don't affect registration)
+        try:
+            notification_service.send_registration_confirmation(new_user)
+        except Exception as e:
+            logger.warning(
+                f"Failed to send registration confirmation email: {str(e)}"
+            )
+
+        try:
+            notification_service.notify_admin_new_registration(new_user)
+        except Exception as e:
+            logger.warning(
+                f"Failed to send admin notification email: {str(e)}"
+            )
 
         return jsonify({
             'success': True,

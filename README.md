@@ -5,10 +5,12 @@ A Flask-based REST API backend for the Twende Tours application, providing tour 
 ## Features
 
 - **Tour Management**: CRUD operations for tour listings
-- **User Authentication**: User registration and login
+- **User Authentication**: User registration and login with email notifications
 - **Booking System**: Tour booking with slot management
 - **M-Pesa Integration**: Daraja API integration for STK Push payments
+- **Email Notifications**: Registration confirmation emails and admin notifications for new users
 - **Health Monitoring**: Health check endpoint with database status
+- **CORS Support**: Configurable CORS for frontend integration
 
 ## API Endpoints
 
@@ -134,6 +136,14 @@ python app.py
 | `SECRET_KEY` | Flask secret key | Yes |
 | `FLASK_ENV` | Environment (development/production) | No |
 | `FRONTEND_URL` | Allowed frontend origins (comma-separated) | No |
+| `MAIL_SERVER` | SMTP server hostname | For email notifications |
+| `MAIL_PORT` | SMTP port (default: 587) | For email notifications |
+| `MAIL_USE_TLS` | Use TLS (default: true) | For email notifications |
+| `MAIL_USE_SSL` | Use SSL (default: false) | For email notifications |
+| `MAIL_USERNAME` | SMTP username/email | For email notifications |
+| `MAIL_PASSWORD` | SMTP password/app password | For email notifications |
+| `MAIL_DEFAULT_SENDER` | Default sender email | For email notifications |
+| `ADMIN_EMAILS` | Admin emails for notifications (comma-separated) | For admin notifications |
 | `DARAJA_CONSUMER_KEY` | Safaricom Daraja consumer key | For payments |
 | `DARAJA_CONSUMER_SECRET` | Safaricom Daraja consumer secret | For payments |
 | `DARAJA_PASSKEY` | Safaricom Daraja passkey | For payments |
@@ -161,6 +171,28 @@ const loginResponse = await fetch('http://localhost:5000/api/auth/login', {
 });
 const { success, user } = await loginResponse.json();
 ```
+
+### Email Notifications Setup
+
+The backend supports email notifications for:
+- **User Registration Confirmation**: Welcome email sent to users after successful registration
+- **Admin Notifications**: Alerts admins when new users register
+
+**Gmail Setup Example:**
+1. Enable 2-Factor Authentication on your Gmail account
+2. Generate an App Password at https://myaccount.google.com/apppasswords
+3. Configure environment variables:
+```bash
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USERNAME=your-email@gmail.com
+MAIL_PASSWORD=your-16-char-app-password
+MAIL_DEFAULT_SENDER=noreply@twendetours.com
+ADMIN_EMAILS=admin1@example.com,admin2@example.com
+```
+
+**Note:** Email notifications are optional. If not configured, registration will still succeed without sending emails.
 
 ### Daraja (M-Pesa) Integration
 

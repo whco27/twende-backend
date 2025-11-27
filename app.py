@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from models import db, Tour, User, Booking, Payment
 from routes import tours_bp, auth_bp, bookings_bp, payments_bp
+from services.notifications import notification_service, mail
 import os
 import logging
 from dotenv import load_dotenv
@@ -28,7 +29,12 @@ allowed_origins = [
     "https://twende-frontend.onrender.com"
 ] + [url.strip() for url in frontend_urls if url.strip()]
 
-CORS(app, origins=list(set(allowed_origins)), supports_credentials=True)
+# Configure CORS with specific settings for all routes
+CORS(app, origins=list(set(allowed_origins)),
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     expose_headers=["Content-Type", "Authorization"])
 
 # Database configuration with connection pool settings
 database_url = os.getenv("DATABASE_URL", "postgresql://localhost/twende_tours")
@@ -46,7 +52,19 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
 }
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
 
+# Email configuration for notifications
+app.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER", "")
+app.config["MAIL_PORT"] = int(os.getenv("MAIL_PORT", "587"))
+app.config["MAIL_USE_TLS"] = os.getenv("MAIL_USE_TLS", "true").lower() == "true"
+app.config["MAIL_USE_SSL"] = os.getenv("MAIL_USE_SSL", "false").lower() == "true"
+app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME", "")
+app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD", "")
+app.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_DEFAULT_SENDER", "noreply@twendetours.com")
+
 db.init_app(app)
+
+# Initialize notification service
+notification_service.init_app(app)
 
 # Register all blueprints
 app.register_blueprint(tours_bp)
