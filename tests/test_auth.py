@@ -440,3 +440,61 @@ def test_list_users_filter_by_active(client, sample_user):
     # All returned users should be active
     for user in data['users']:
         assert user['is_active'] is True
+
+
+# Tests for update user input validation
+
+def test_update_user_empty_first_name(client, sample_user):
+    """Test updating user with empty first_name fails with 400"""
+    response = client.put(f'/api/auth/user/{sample_user}', json={
+        'first_name': ''
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'first_name' in data['error'].lower()
+
+
+def test_update_user_empty_last_name(client, sample_user):
+    """Test updating user with empty last_name fails with 400"""
+    response = client.put(f'/api/auth/user/{sample_user}', json={
+        'last_name': ''
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'last_name' in data['error'].lower()
+
+
+def test_update_user_name_too_long(client, sample_user):
+    """Test updating user with name exceeding maximum length fails with 400"""
+    response = client.put(f'/api/auth/user/{sample_user}', json={
+        'first_name': 'A' * 101  # Exceeds 100 character limit
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert '100 characters' in data['error']
+
+
+def test_update_user_phone_too_long(client, sample_user):
+    """Test updating user with phone number exceeding maximum length fails with 400"""
+    response = client.put(f'/api/auth/user/{sample_user}', json={
+        'phone_number': '0' * 21  # Exceeds 20 character limit
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert '20 characters' in data['error']
+
+
+def test_update_user_whitespace_names_trimmed(client, sample_user):
+    """Test that first and last names are trimmed of whitespace during update"""
+    response = client.put(f'/api/auth/user/{sample_user}', json={
+        'first_name': '  UpdatedFirst  ',
+        'last_name': '  UpdatedLast  '
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['user']['first_name'] == 'UpdatedFirst'
+    assert data['user']['last_name'] == 'UpdatedLast'

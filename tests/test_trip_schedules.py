@@ -497,3 +497,77 @@ def test_cascade_delete_trip_schedule(client, sample_user):
 
     # Verify reminders are also deleted (by getting empty list)
     # Since cascade delete is enabled, reminders should be gone
+
+
+# Tests for input validation
+
+def test_create_trip_schedule_empty_title(client, sample_user):
+    """Test creating a trip schedule with empty title fails with 400"""
+    schedule_data = {
+        'user_id': sample_user,
+        'title': '',
+        'location': 'Test Location',
+        'departure_date': get_future_datetime()
+    }
+    response = client.post('/api/trip-schedules/', json=schedule_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'title' in data['error'].lower()
+
+
+def test_create_trip_schedule_empty_location(client, sample_user):
+    """Test creating a trip schedule with empty location fails with 400"""
+    schedule_data = {
+        'user_id': sample_user,
+        'title': 'Valid Title',
+        'location': '',
+        'departure_date': get_future_datetime()
+    }
+    response = client.post('/api/trip-schedules/', json=schedule_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'location' in data['error'].lower()
+
+
+def test_update_trip_schedule_empty_title(client, sample_user):
+    """Test updating a trip schedule with empty title fails with 400"""
+    # Create a trip schedule first
+    create_response = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'Original Title',
+        'location': 'Original Location',
+        'departure_date': get_future_datetime()
+    })
+    schedule_id = create_response.get_json()['trip_schedule']['id']
+
+    # Update with empty title
+    response = client.put(f'/api/trip-schedules/{schedule_id}', json={
+        'title': ''
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'title' in data['error'].lower()
+
+
+def test_update_trip_schedule_empty_location(client, sample_user):
+    """Test updating a trip schedule with empty location fails with 400"""
+    # Create a trip schedule first
+    create_response = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'Original Title',
+        'location': 'Original Location',
+        'departure_date': get_future_datetime()
+    })
+    schedule_id = create_response.get_json()['trip_schedule']['id']
+
+    # Update with empty location
+    response = client.put(f'/api/trip-schedules/{schedule_id}', json={
+        'location': ''
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'location' in data['error'].lower()

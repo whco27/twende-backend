@@ -393,3 +393,116 @@ def test_bulk_import_mixed_valid_invalid(client):
     assert data['success'] is True
     assert data['created_count'] == 1
     assert data['error_count'] == 1
+
+
+# Tests for input validation
+
+def test_create_tour_invalid_price_string(client):
+    """Test creating a tour with string price fails with 400"""
+    tour_data = {
+        'title': 'Invalid Price Tour',
+        'description': 'A tour with invalid price',
+        'price': 'not_a_number',
+        'duration': '5 days',
+        'location': 'Serengeti'
+    }
+    response = client.post('/api/tours/', json=tour_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'price' in data['error'].lower()
+
+
+def test_create_tour_negative_price(client):
+    """Test creating a tour with negative price fails with 400"""
+    tour_data = {
+        'title': 'Negative Price Tour',
+        'description': 'A tour with negative price',
+        'price': -100,
+        'duration': '5 days',
+        'location': 'Serengeti'
+    }
+    response = client.post('/api/tours/', json=tour_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'price' in data['error'].lower()
+
+
+def test_create_tour_zero_price(client):
+    """Test creating a tour with zero price fails with 400"""
+    tour_data = {
+        'title': 'Zero Price Tour',
+        'description': 'A tour with zero price',
+        'price': 0,
+        'duration': '5 days',
+        'location': 'Serengeti'
+    }
+    response = client.post('/api/tours/', json=tour_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'price' in data['error'].lower()
+
+
+def test_create_tour_negative_available_slots(client):
+    """Test creating a tour with negative available_slots fails with 400"""
+    tour_data = {
+        'title': 'Negative Slots Tour',
+        'description': 'A tour with negative slots',
+        'price': 1000,
+        'duration': '5 days',
+        'location': 'Serengeti',
+        'available_slots': -5
+    }
+    response = client.post('/api/tours/', json=tour_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'available_slots' in data['error'].lower()
+
+
+def test_create_tour_empty_title(client):
+    """Test creating a tour with empty title fails with 400"""
+    tour_data = {
+        'title': '',
+        'description': 'A tour with empty title',
+        'price': 1000,
+        'duration': '5 days',
+        'location': 'Serengeti'
+    }
+    response = client.post('/api/tours/', json=tour_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'title' in data['error'].lower()
+
+
+def test_create_tour_empty_description(client):
+    """Test creating a tour with empty description fails with 400"""
+    tour_data = {
+        'title': 'Valid Title',
+        'description': '',
+        'price': 1000,
+        'duration': '5 days',
+        'location': 'Serengeti'
+    }
+    response = client.post('/api/tours/', json=tour_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'description' in data['error'].lower()
+
+
+def test_update_tour_negative_price(client, sample_tour):
+    """Test updating a tour with negative price fails with 400"""
+    response = client.put(f'/api/tours/{sample_tour}', json={
+        'price': -100
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'price' in data['error'].lower()
+
+
+def test_update_tour_empty_title(client, sample_tour):
+    """Test updating a tour with empty title fails with 400"""
+    response = client.put(f'/api/tours/{sample_tour}', json={
+        'title': ''
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert 'title' in data['error'].lower()
