@@ -98,3 +98,88 @@ def test_delete_tour(client, sample_tour):
     # Verify tour is deleted
     response = client.get(f'/api/tours/{sample_tour}')
     assert response.status_code == 404
+
+
+def test_search_tours_by_title(client, sample_tour):
+    """Test searching tours by title"""
+    response = client.get('/api/tours/search?title=Safari')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'tours' in data
+    assert 'pagination' in data
+    assert len(data['tours']) > 0
+    assert 'Safari' in data['tours'][0]['title']
+
+
+def test_search_tours_by_location(client, sample_tour):
+    """Test searching tours by location"""
+    response = client.get('/api/tours/search?location=Masai')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert len(data['tours']) > 0
+    assert 'Masai' in data['tours'][0]['location']
+
+
+def test_search_tours_by_price_range(client, sample_tour):
+    """Test searching tours by price range"""
+    response = client.get('/api/tours/search?min_price=1000&max_price=2000')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert len(data['tours']) > 0
+    for tour in data['tours']:
+        assert tour['price'] >= 1000
+        assert tour['price'] <= 2000
+
+
+def test_search_tours_no_results(client):
+    """Test searching tours with no matching results"""
+    response = client.get('/api/tours/search?title=NonExistentTour')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert len(data['tours']) == 0
+
+
+def test_seed_tours(client):
+    """Test seeding default tours"""
+    response = client.post('/api/tours/seed')
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'created_tours' in data
+    assert 'existing_tours' in data
+    assert len(data['created_tours']) > 0
+
+
+def test_seed_tours_idempotent(client):
+    """Test that seeding tours is idempotent (doesn't create duplicates)"""
+    # First seed
+    response1 = client.post('/api/tours/seed')
+    assert response1.status_code == 201
+    data1 = response1.get_json()
+    created_count = len(data1['created_tours'])
+
+    # Second seed - should not create new tours
+    response2 = client.post('/api/tours/seed')
+    assert response2.status_code == 200  # 200 when all already exist
+    data2 = response2.get_json()
+    assert data2['success'] is True
+    assert len(data2['created_tours']) == 0
+    assert len(data2['existing_tours']) == created_count
+
+
+def test_seed_then_search_masai_mara(client):
+    """Test that after seeding, the Masai Mara tour can be found"""
+    # Seed the database
+    client.post('/api/tours/seed')
+
+    # Search for Masai Mara tour
+    response = client.get('/api/tours/search?title=Masai%20Mara')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert len(data['tours']) > 0
+    assert 'Masai Mara' in data['tours'][0]['title']

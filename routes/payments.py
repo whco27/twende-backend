@@ -742,6 +742,67 @@ def get_booking_payments(booking_id):
         }), 500
 
 
+@payments_bp.route('/', methods=['GET'])
+def list_payments():
+    """List all payments with optional filtering and pagination.
+    
+    Query Parameters:
+        status: Filter by payment status (initiated, pending, completed, failed, cancelled)
+        booking_id: Filter by booking ID
+        page: Page number for pagination (default: 1)
+        per_page: Results per page (default: 20, max: 100)
+    
+    Returns:
+        JSON object with payments list and pagination info
+    """
+    try:
+        status = request.args.get('status')
+        booking_id = request.args.get('booking_id', type=int)
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+
+        # Validate pagination parameters
+        if page < 1:
+            page = 1
+        if per_page < 1 or per_page > 100:
+            per_page = 20
+
+        query = Payment.query
+
+        # Apply filters
+        if status:
+            query = query.filter_by(status=status)
+        if booking_id:
+            query = query.filter_by(booking_id=booking_id)
+
+        # Order by most recent first
+        query = query.order_by(Payment.created_at.desc())
+
+        # Paginate results
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+        return jsonify({
+            'success': True,
+            'payments': [payment.to_dict() for payment in pagination.items],
+            'pagination': {
+                'page': pagination.page,
+                'per_page': pagination.per_page,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        }), 200
+
+    except Exception as e:
+        logger.exception(f"Error listing payments: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to list payments',
+            'error_code': 'LIST_ERROR'
+        }), 500
+
+
 @payments_bp.route('/health', methods=['GET'])
 def payment_service_health():
     """Check M-Pesa payment service health and connectivity"""

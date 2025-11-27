@@ -267,6 +267,8 @@ fetch(`/api/tours/`);
 | `/api/tours/` | GET | List all tours (supports `page`, `per_page`, `location` params) |
 | `/api/tours/<id>` | GET | Get tour details |
 | `/api/tours/` | POST | Create tour |
+| `/api/tours/search` | GET | Search tours (supports `title`, `location`, `min_price`, `max_price`, `page`, `per_page` params) |
+| `/api/tours/seed` | POST | Seed database with default tours |
 | `/api/auth/register` | POST | User registration |
 | `/api/auth/login` | POST | User login |
 | `/api/auth/check-email` | POST | Check email availability |
@@ -275,9 +277,11 @@ fetch(`/api/tours/`);
 | `/api/bookings/<id>` | GET/PUT/DELETE | Get/update/delete booking |
 | `/api/bookings/<id>/cancel` | POST | Cancel booking |
 | `/api/bookings/user/<user_id>` | GET | Get user's bookings (supports `page`, `per_page` params) |
+| `/api/payments/` | GET | List all payments (supports `status`, `booking_id`, `page`, `per_page` params) |
 | `/api/payments/initiate` | POST | Start M-Pesa payment |
 | `/api/payments/status/<id>` | GET | Check payment status |
 | `/api/payments/callback` | POST | M-Pesa webhook |
+| `/api/payments/booking/<id>` | GET | Get payments for a booking |
 | `/health` | GET | Health check |
 
 ### Daraja API Integration
@@ -1012,3 +1016,171 @@ If you need to clean up test users from the database:
 -- Connect to PostgreSQL and run:
 DELETE FROM users WHERE email LIKE 'test%@example.com';
 ```
+
+## Best Practices for Backend Data Storage
+
+This section provides guidelines for ensuring data consistency between the frontend, Daraja API, and backend database.
+
+### 1. Always Use Backend Database as Source of Truth
+
+**DO NOT** rely on local storage for critical data like tours, bookings, or payments. Always:
+
+- Fetch tour data from `/api/tours/` instead of storing locally
+- Create bookings via `/api/bookings/` endpoint
+- Track payment status via `/api/payments/status/<checkout_id>`
+
+```javascript
+// ❌ Bad: Storing tours in local storage
+localStorage.setItem('selectedTour', JSON.stringify(tour));
+
+// ✅ Good: Always fetch from backend
+const tour = await fetch(`${API_URL}/api/tours/${tourId}`).then(r => r.json());
+```
+
+### 2. Seed Tours on Deployment
+
+When deploying a new environment, seed the database with default tours:
+
+```bash
+# Call the seed endpoint after deployment
+curl -X POST https://your-backend.up.railway.app/api/tours/seed
+```
+
+Or programmatically during frontend initialization:
+
+```javascript
+// Check if tours exist, seed if empty
+async function ensureToursExist() {
+  const response = await fetch(`${API_URL}/api/tours/`);
+  const tours = await response.json();
+  
+  if (tours.length === 0) {
+    // Seed default tours
+    await fetch(`${API_URL}/api/tours/seed`, { method: 'POST' });
+  }
+}
+```
+
+### 3. Search Tours by Title
+
+If you need to find a specific tour (e.g., "Masai Mara 3-Day Safari"):
+
+```javascript
+// Search for tour by title
+const response = await fetch(
+  `${API_URL}/api/tours/search?title=${encodeURIComponent('Masai Mara')}`
+);
+const data = await response.json();
+const tour = data.tours[0];
+```
+
+### 4. Handle Tour Not Found Errors
+
+When creating bookings, the API returns detailed error codes:
+
+```javascript
+const response = await fetch(`${API_URL}/api/bookings/`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    user_id: userId,
+    tour_id: tourId,
+    tour_date: '2024-03-15',
+    number_of_guests: 2
+  })
+});
+
+const data = await response.json();
+
+if (!data.success && data.error_code === 'TOUR_NOT_FOUND') {
+  // Tour doesn't exist in database
+  console.error('Tour not found:', data.hint);
+  // Either seed tours or show error to user
+}
+```
+
+### 5. Verify Payment Data is Stored
+
+After initiating payment, verify the payment record exists:
+
+```javascript
+// After initiating payment
+const initResponse = await fetch(`${API_URL}/api/payments/initiate`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ booking_id: bookingId, phone_number: phoneNumber })
+});
+const initData = await initResponse.json();
+
+// Verify payment was recorded
+const statusResponse = await fetch(
+  `${API_URL}/api/payments/status/${initData.checkout_request_id}`
+);
+const statusData = await statusResponse.json();
+
+if (statusData.success) {
+  console.log('Payment record created:', statusData.payment);
+}
+```
+
+### 6. Poll Payment Status After STK Push
+
+Daraja API callbacks may take time. Poll for status updates:
+
+```javascript
+async function waitForPayment(checkoutRequestId, maxAttempts = 30) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const response = await fetch(
+      `${API_URL}/api/payments/status/${checkoutRequestId}`
+    );
+    const data = await response.json();
+    
+    if (data.payment.status === 'completed') {
+      return { success: true, payment: data.payment };
+    }
+    if (data.payment.status === 'failed') {
+      return { success: false, error: data.payment.result_description };
+    }
+    
+    // Wait 2 seconds before next poll
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  return { success: false, error: 'Payment timeout' };
+}
+```
+
+### 7. List and Debug Payments
+
+Use the payments list endpoint to debug payment issues:
+
+```bash
+# List all payments
+curl "https://your-backend.up.railway.app/api/payments/"
+
+# Filter by status
+curl "https://your-backend.up.railway.app/api/payments/?status=failed"
+
+# Filter by booking
+curl "https://your-backend.up.railway.app/api/payments/?booking_id=123"
+```
+
+### 8. Error Code Reference
+
+| Error Code | Description | Solution |
+|------------|-------------|----------|
+| `TOUR_NOT_FOUND` | Tour doesn't exist in database | Seed tours using `/api/tours/seed` |
+| `BOOKING_NOT_FOUND` | Booking doesn't exist | Verify booking was created successfully |
+| `PAYMENT_NOT_FOUND` | Payment record not found | Check checkout_request_id is correct |
+| `SERVICE_NOT_CONFIGURED` | Daraja credentials missing | Configure DARAJA_* environment variables |
+| `INVALID_PHONE` | Invalid M-Pesa phone number | Use format 07XXXXXXXX or 254XXXXXXXXX |
+
+### 9. Database Migration Checklist
+
+When migrating or setting up a new environment:
+
+1. ✅ Verify database connection with `/health` endpoint
+2. ✅ Seed default tours with `POST /api/tours/seed`
+3. ✅ Verify tours exist with `GET /api/tours/`
+4. ✅ Test payment configuration with `GET /api/payments/health`
+5. ✅ Create a test booking to verify full flow

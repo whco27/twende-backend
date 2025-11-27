@@ -116,7 +116,10 @@ def create_booking():
         if not tour:
             return jsonify({
                 'success': False,
-                'error': 'Tour not found'
+                'error': 'Tour not found',
+                'error_code': 'TOUR_NOT_FOUND',
+                'tour_id': data['tour_id'],
+                'hint': 'Please ensure the tour exists in the database. Use GET /api/tours/ to list available tours or POST /api/tours/seed to create default tours.'
             }), 404
 
         # Validate number_of_guests
