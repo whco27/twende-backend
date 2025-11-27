@@ -1,7 +1,7 @@
 """Booking routes for tour reservations"""
 from flask import Blueprint, jsonify, request
 from models import db, Booking, Tour, User
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 from werkzeug.exceptions import NotFound
 
 bookings_bp = Blueprint('bookings', __name__, url_prefix='/api/bookings')
