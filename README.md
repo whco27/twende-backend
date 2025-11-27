@@ -386,12 +386,46 @@ For integrated deployment with the frontend served from the same server:
 
 ### Railway
 
+Railway is the recommended deployment platform for Twende Tours. Here's a complete setup guide:
+
+**Step 1: Create Project**
 1. Create a new project on Railway
-2. Add PostgreSQL database service
-3. Connect your GitHub repository
-4. Set environment variables in Railway dashboard:
-   - `ENABLE_CORS=false` for integrated deployment
-5. Railway will auto-deploy using the `Procfile`
+2. Click **"Deploy from GitHub repo"**
+3. Select the `twende-backend` repository
+
+**Step 2: Add PostgreSQL**
+1. In your project, click **"+ New"** → **"Database"** → **"PostgreSQL"**
+2. Railway automatically sets `DATABASE_URL` for your backend
+
+**Step 3: Configure Environment Variables**
+
+Required variables in Railway dashboard:
+```bash
+SECRET_KEY=your-secure-random-key
+FLASK_ENV=production
+ENABLE_CORS=true  # Set to false if frontend served from same origin
+FRONTEND_URL=https://your-frontend.netlify.app  # Your frontend's URL
+```
+
+**Step 4: Verify Deployment**
+```bash
+# Check health endpoint
+curl https://your-app.up.railway.app/health
+
+# Expected response:
+# {"status": "healthy", "database": "healthy", "service": "twende-backend"}
+```
+
+**Step 5: Connect Frontend**
+
+In your frontend `.env` file:
+```bash
+REACT_APP_API_URL=https://your-app.up.railway.app
+# or for Vue/Vite:
+VITE_API_URL=https://your-app.up.railway.app
+```
+
+📖 **For detailed Railway deployment, see [INTEGRATION.md](INTEGRATION.md#railway-deployment-guide)**
 
 ### Docker
 
