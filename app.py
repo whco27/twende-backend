@@ -3,9 +3,19 @@ from flask_cors import CORS
 from models import db, Tour, User, Booking, Payment
 from routes import tours_bp, auth_bp, bookings_bp, payments_bp
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Configure logging
+log_level = logging.DEBUG if os.getenv('FLASK_ENV') == 'development' else logging.INFO
+logging.basicConfig(
+    level=log_level,
+    format='%(asctime)s %(levelname)s [%(name)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -25,6 +35,8 @@ database_url = os.getenv("DATABASE_URL", "postgresql://localhost/twende_tours")
 # Handle Railway's postgres:// to postgresql:// conversion
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+logger.info(f"Database URL configured (connection details hidden)")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -64,8 +76,10 @@ def health():
         # Test database connection
         db.session.execute(db.text("SELECT 1"))
         db.session.commit()
+        logger.debug("Health check: Database connection successful")
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
+        logger.error(f"Health check: Database connection failed - {str(e)}")
 
     return jsonify({
         "status": "healthy" if db_status == "healthy" else "degraded",
@@ -74,9 +88,14 @@ def health():
     })
 
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+        logger.info("Database tables created/verified successfully")
+    except Exception as e:
+        logger.error(f"Failed to create database tables: {str(e)}")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("FLASK_ENV", "development") == "development"
+    logger.info(f"Starting Twende Tours API on port {port} (debug={debug})")
     app.run(debug=debug, port=port, host="0.0.0.0")
