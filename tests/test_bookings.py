@@ -163,3 +163,19 @@ def test_booking_invalid_guests(client, sample_user, sample_tour):
     assert response.status_code == 400
     assert 'invalid' in response.get_json()['error'].lower()
 
+
+def test_booking_tour_not_found(client, sample_user):
+    """Test creating booking with non-existent tour returns error code"""
+    booking_data = {
+        'user_id': sample_user,
+        'tour_id': 9999,  # Non-existent tour
+        'tour_date': get_future_date(),
+        'number_of_guests': 1
+    }
+    response = client.post('/api/bookings/', json=booking_data)
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['success'] is False
+    assert data['error_code'] == 'TOUR_NOT_FOUND'
+    assert 'hint' in data
+

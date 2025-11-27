@@ -52,7 +52,9 @@ python app.py
 |--------|----------|-------------|
 | GET | `/api/tours/` | Get all tours (supports `page`, `per_page`, `location` query params) |
 | GET | `/api/tours/<id>` | Get tour by ID |
+| GET | `/api/tours/search` | Search tours (supports `title`, `location`, `min_price`, `max_price`, `page`, `per_page` query params) |
 | POST | `/api/tours/` | Create a new tour |
+| POST | `/api/tours/seed` | Seed database with default tours |
 | PUT | `/api/tours/<id>` | Update a tour |
 | DELETE | `/api/tours/<id>` | Delete a tour |
 
@@ -156,10 +158,13 @@ Or if email is taken:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/api/payments/` | List all payments (supports `status`, `booking_id`, `page`, `per_page` query params) |
 | POST | `/api/payments/initiate` | Initiate M-Pesa STK Push payment |
 | POST | `/api/payments/callback` | M-Pesa callback URL (webhook) |
 | GET | `/api/payments/status/<checkout_request_id>` | Check payment status |
 | GET | `/api/payments/booking/<booking_id>` | Get payments for a booking |
+| GET | `/api/payments/health` | Check M-Pesa service configuration and connectivity |
+| GET | `/api/payments/config/status` | Check M-Pesa configuration status |
 
 ### Health Check
 

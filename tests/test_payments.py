@@ -238,3 +238,32 @@ def test_phone_number_validation():
     assert validate_phone_number(None) is not None  # None
     assert validate_phone_number('12345') is not None  # Shorter than 9 digits
     assert validate_phone_number('254200000000') is not None  # Invalid prefix (2XX)
+
+
+def test_list_payments_empty(client):
+    """Test listing payments when none exist"""
+    response = client.get('/api/payments/')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'payments' in data
+    assert 'pagination' in data
+    assert len(data['payments']) == 0
+
+
+def test_list_payments_with_pagination(client):
+    """Test listing payments with pagination parameters"""
+    response = client.get('/api/payments/?page=1&per_page=10')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['pagination']['page'] == 1
+    assert data['pagination']['per_page'] == 10
+
+
+def test_list_payments_filter_by_status(client):
+    """Test listing payments filtered by status"""
+    response = client.get('/api/payments/?status=pending')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
