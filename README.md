@@ -35,6 +35,32 @@ A Flask-based REST API backend for the Twende Tours application, providing tour 
 | GET | `/api/auth/user/<id>` | Get user by ID |
 | PUT | `/api/auth/user/<id>` | Update user |
 
+#### User Registration
+
+**POST** `/api/auth/register`
+
+Register a new user account.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword",
+  "first_name": "John",
+  "last_name": "Doe",
+  "phone_number": "0712345678"  // optional
+}
+```
+
+**Validation Rules:**
+- `email`: Required, valid email format, max 255 characters
+- `password`: Required, minimum 8 characters
+- `first_name`: Required, max 100 characters
+- `last_name`: Required, max 100 characters
+- `phone_number`: Optional, max 20 characters
+
+**Note:** All string inputs are automatically trimmed of leading/trailing whitespace.
+
 ### Bookings API (`/api/bookings`)
 
 | Method | Endpoint | Description |
