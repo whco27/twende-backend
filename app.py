@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 from models import db, Tour, User, Booking, Payment
 from routes import tours_bp, auth_bp, bookings_bp, payments_bp
@@ -18,23 +18,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# Static files directory for frontend
+STATIC_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'public')
 
-# Allow CORS from frontend - support multiple origins for development and production
-frontend_urls = os.getenv('FRONTEND_URL', 'http://localhost:5173').split(',')
-allowed_origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://twende-tours.netlify.app",
-    "https://twende-frontend.onrender.com"
-] + [url.strip() for url in frontend_urls if url.strip()]
+app = Flask(__name__, static_folder=STATIC_FOLDER, static_url_path='')
 
-# Configure CORS with specific settings for all routes
-CORS(app, origins=list(set(allowed_origins)),
-     supports_credentials=True,
-     allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     expose_headers=["Content-Type", "Authorization"])
+# CORS configuration - can be disabled when frontend is served from same origin
+enable_cors = os.getenv('ENABLE_CORS', 'true').lower() == 'true'
+
+if enable_cors:
+    # Allow CORS from frontend - support multiple origins for development and production
+    frontend_urls = os.getenv('FRONTEND_URL', 'http://localhost:5173').split(',')
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://twende-tours.netlify.app",
+        "https://twende-frontend.onrender.com"
+    ] + [url.strip() for url in frontend_urls if url.strip()]
+
+    # Configure CORS with specific settings for all routes
+    CORS(app, origins=list(set(allowed_origins)),
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         expose_headers=["Content-Type", "Authorization"])
+    logger.info("CORS enabled for external frontend origins")
+else:
+    logger.info("CORS disabled - frontend served from same origin")
 
 # Database configuration with connection pool settings
 database_url = os.getenv("DATABASE_URL", "postgresql://localhost/twende_tours")
@@ -74,6 +84,10 @@ app.register_blueprint(payments_bp)
 
 @app.route("/")
 def root():
+    """Serve frontend index.html if it exists, otherwise return API info"""
+    index_path = os.path.join(STATIC_FOLDER, 'index.html')
+    if os.path.exists(index_path):
+        return send_from_directory(STATIC_FOLDER, 'index.html')
     return jsonify({
         "message": "Twende Tours API running",
         "version": "1.0.0",
@@ -104,6 +118,25 @@ def health():
         "database": db_status,
         "service": "twende-backend"
     })
+
+
+@app.errorhandler(404)
+def not_found(e):
+    """Serve frontend index.html for SPA routing on non-API routes"""
+    # Don't serve frontend for API routes - return 404 JSON
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Not found'}), 404
+
+    # Check if frontend index.html exists
+    index_path = os.path.join(STATIC_FOLDER, 'index.html')
+    if os.path.exists(index_path):
+        return send_from_directory(STATIC_FOLDER, 'index.html')
+
+    # No frontend deployed, return API info
+    return jsonify({
+        'error': 'Not found',
+        'message': 'Frontend not deployed. API endpoints are available at /api/*'
+    }), 404
 
 with app.app_context():
     try:

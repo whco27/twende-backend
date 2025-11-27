@@ -1,0 +1,3 @@
+# This directory is for frontend build artifacts
+# Place compiled frontend files (e.g., from `npm run build`) here
+# The backend will serve these files for non-API routes
