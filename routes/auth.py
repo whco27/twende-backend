@@ -5,6 +5,18 @@ import re
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
+# Maximum lengths for database fields
+MAX_EMAIL_LENGTH = 255
+MAX_NAME_LENGTH = 100
+MAX_PHONE_LENGTH = 20
+
+
+def sanitize_string(value):
+    """Sanitize string input by stripping whitespace"""
+    if value is None:
+        return None
+    return str(value).strip()
+
 
 def validate_email(email):
     """Validate email format"""
@@ -29,31 +41,77 @@ def register():
                 'error': 'No data provided'
             }), 400
 
+        # Sanitize inputs (strip whitespace)
+        email = sanitize_string(data.get('email'))
+        password = data.get('password', '')  # Don't strip password whitespace
+        first_name = sanitize_string(data.get('first_name'))
+        last_name = sanitize_string(data.get('last_name'))
+        phone_number = sanitize_string(data.get('phone_number'))
+
         # Validate required fields
-        required_fields = ['email', 'password', 'first_name', 'last_name']
-        for field in required_fields:
-            if field not in data or not data[field]:
-                return jsonify({
-                    'success': False,
-                    'error': f'Missing required field: {field}'
-                }), 400
+        if not email:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: email'
+            }), 400
+        if not password:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: password'
+            }), 400
+        if not first_name:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: first_name'
+            }), 400
+        if not last_name:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: last_name'
+            }), 400
 
         # Validate email format
-        if not validate_email(data['email']):
+        if not validate_email(email):
             return jsonify({
                 'success': False,
                 'error': 'Invalid email format'
             }), 400
 
+        # Validate email length
+        if len(email) > MAX_EMAIL_LENGTH:
+            return jsonify({
+                'success': False,
+                'error': f'Email must be {MAX_EMAIL_LENGTH} characters or less'
+            }), 400
+
+        # Validate name lengths
+        if len(first_name) > MAX_NAME_LENGTH:
+            return jsonify({
+                'success': False,
+                'error': f'First name must be {MAX_NAME_LENGTH} characters or less'
+            }), 400
+        if len(last_name) > MAX_NAME_LENGTH:
+            return jsonify({
+                'success': False,
+                'error': f'Last name must be {MAX_NAME_LENGTH} characters or less'
+            }), 400
+
+        # Validate phone number length if provided
+        if phone_number and len(phone_number) > MAX_PHONE_LENGTH:
+            return jsonify({
+                'success': False,
+                'error': f'Phone number must be {MAX_PHONE_LENGTH} characters or less'
+            }), 400
+
         # Validate password strength
-        if not validate_password(data['password']):
+        if not validate_password(password):
             return jsonify({
                 'success': False,
                 'error': 'Password must be at least 8 characters long'
             }), 400
 
         # Check if user already exists
-        existing_user = User.query.filter_by(email=data['email'].lower()).first()
+        existing_user = User.query.filter_by(email=email.lower()).first()
         if existing_user:
             return jsonify({
                 'success': False,
@@ -62,12 +120,12 @@ def register():
 
         # Create new user
         new_user = User(
-            email=data['email'].lower(),
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            phone_number=data.get('phone_number')
+            email=email.lower(),
+            first_name=first_name,
+            last_name=last_name,
+            phone_number=phone_number
         )
-        new_user.set_password(data['password'])
+        new_user.set_password(password)
 
         db.session.add(new_user)
         db.session.commit()
