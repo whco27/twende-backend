@@ -553,10 +553,41 @@ gunicorn app:app
 **Problem**: No prompt on phone after payment initiation.
 
 **Solution**:
-1. Verify Daraja credentials are correct
-2. Ensure `DARAJA_ENV` matches credentials (sandbox vs production)
-3. Check phone number format (should be 254XXXXXXXXX)
-4. Verify callback URL is publicly accessible
+1. Check configuration status: `curl /api/payments/config/status`
+2. Verify Daraja credentials are correct
+3. Ensure `DARAJA_ENV` matches credentials (sandbox vs production)
+4. Check phone number format (should be 254XXXXXXXXX for Kenyan mobile)
+5. Verify callback URL is publicly accessible (HTTPS required for production)
+
+### M-Pesa "Failed to fetch" Error
+
+**Problem**: Frontend shows "Failed to fetch" when initiating payment.
+
+**Solution**:
+1. Check payment service health: `curl /api/payments/health`
+2. Verify CORS is configured correctly (`ENABLE_CORS=true` and `FRONTEND_URL` set)
+3. Check browser developer console for specific error details
+4. Verify the backend server is running and accessible
+5. Ensure API requests include proper `Content-Type: application/json` header
+
+### M-Pesa Timeout Errors
+
+**Problem**: Payment requests timeout.
+
+**Solution**:
+1. The system automatically retries failed requests up to 3 times
+2. Check network connectivity to Safaricom's servers
+3. Verify correct `DARAJA_ENV` setting (sandbox or production)
+4. Check the payment service health endpoint for connectivity status
+
+### Invalid Phone Number Error
+
+**Problem**: Payment initiation fails with invalid phone number error.
+
+**Solution**:
+1. Use Kenyan mobile format: `07XXXXXXXX` or `254XXXXXXXXX`
+2. Phone must be a valid Kenyan mobile number (starting with 07XX or 01XX)
+3. Remove any spaces or special characters from the phone number
 
 ### Frontend Not Loading
 
@@ -567,12 +598,43 @@ gunicorn app:app
 2. Verify `public/index.html` exists
 3. Check frontend build succeeded
 
+## Payment API Reference
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/payments/initiate` | POST | Initiate STK Push payment |
+| `/api/payments/callback` | POST | M-Pesa callback webhook |
+| `/api/payments/status/<checkout_id>` | GET | Check payment status |
+| `/api/payments/booking/<booking_id>` | GET | Get payments for a booking |
+| `/api/payments/config/status` | GET | Check M-Pesa configuration |
+| `/api/payments/health` | GET | Check payment service health |
+
+### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `NO_DATA` | No JSON data provided in request |
+| `MISSING_FIELDS` | Required fields are missing |
+| `INVALID_BOOKING_ID` | Booking ID is not a valid integer |
+| `BOOKING_NOT_FOUND` | Booking does not exist |
+| `ALREADY_PAID` | Booking has already been paid |
+| `INVALID_PHONE` | Phone number format is invalid |
+| `SERVICE_NOT_CONFIGURED` | M-Pesa credentials not configured |
+| `INVALID_AMOUNT` | Invalid booking amount |
+| `AUTH_FAILED` | M-Pesa authentication failed |
+| `TIMEOUT` | Request to M-Pesa timed out |
+| `CONNECTION_ERROR` | Unable to connect to M-Pesa |
+| `STK_PUSH_FAILED` | STK Push request failed |
+
 ## Support
 
 For issues:
 1. Check logs: `python app.py` shows Flask logs
 2. Run tests: `pytest tests/ -v`
 3. Check health: `curl localhost:5000/health`
+4. Check payment health: `curl localhost:5000/api/payments/health`
 
 ## Railway Deployment Guide
 
