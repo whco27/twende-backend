@@ -84,9 +84,10 @@ fi
 
 echo -e "Build output: ${YELLOW}$FRONTEND_DIR/$BUILD_DIR${NC}"
 
-# Clear public directory (except .gitkeep)
+# Clear public directory (except .gitkeep and daraja directory)
 echo -e "${YELLOW}Clearing old frontend files from public directory...${NC}"
-find "$PUBLIC_DIR" -mindepth 1 ! -name '.gitkeep' -delete 2>/dev/null || true
+# Use a more selective approach to preserve the daraja directory
+find "$PUBLIC_DIR" -mindepth 1 -maxdepth 1 ! -name '.gitkeep' ! -name 'daraja' -exec rm -rf {} + 2>/dev/null || true
 
 # Copy build files to public directory
 echo -e "${YELLOW}Copying build files to backend public directory...${NC}"
