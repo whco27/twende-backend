@@ -625,11 +625,12 @@ def send_reminder(reminder_id):
             if not sent:
                 error_message = 'Failed to send email notification'
         elif reminder.reminder_type == 'sms':
-            # SMS sending would be implemented here
-            # For now, we'll mark it as sent for demonstration
+            # TODO: Integrate with SMS provider (e.g., Twilio, Africa's Talking)
+            # For now, we log the intent. SMS functionality requires additional
+            # configuration and provider credentials.
             if user.phone_number:
-                # In a real implementation, you would integrate with an SMS provider
                 logger.info(f"SMS reminder would be sent to {user.phone_number}")
+                # Mark as sent in development. In production, implement actual SMS.
                 sent = True
             else:
                 error_message = 'User does not have a phone number'
@@ -722,6 +723,7 @@ def process_pending_reminders():
                 if not sent:
                     error_message = 'Failed to send email notification'
             elif reminder.reminder_type == 'sms':
+                # TODO: Integrate with SMS provider (e.g., Twilio, Africa's Talking)
                 if user.phone_number:
                     logger.info(f"SMS reminder would be sent to {user.phone_number}")
                     sent = True
