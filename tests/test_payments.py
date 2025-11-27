@@ -63,7 +63,7 @@ def test_initiate_payment_invalid_phone_number(client, sample_user, sample_tour)
     })
     booking_id = booking_response.get_json()['booking']['id']
 
-    # Test with too short phone number
+    # Test with phone number shorter than 9 digits (excluding country code)
     response = client.post('/api/payments/initiate', json={
         'booking_id': booking_id,
         'phone_number': '12345'
@@ -230,5 +230,5 @@ def test_phone_number_validation():
     # Invalid phone numbers
     assert validate_phone_number('') is not None  # Empty
     assert validate_phone_number(None) is not None  # None
-    assert validate_phone_number('12345') is not None  # Too short
-    assert validate_phone_number('254200000000') is not None  # Invalid prefix
+    assert validate_phone_number('12345') is not None  # Shorter than 9 digits
+    assert validate_phone_number('254200000000') is not None  # Invalid prefix (2XX)

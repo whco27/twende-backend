@@ -373,14 +373,15 @@ def validate_phone_number(phone):
     formatted = format_phone_number(phone)
 
     if len(formatted) != 12:
-        return "Invalid phone number length. Must be 9 digits after country code (254)."
+        return "Invalid phone number length. Must be 12 digits total (254 + 9 digits)."
 
     if not formatted.startswith('254'):
         return "Phone number must start with 254 or 0."
 
-    # Validate Kenyan mobile prefixes (7XX or 1XX)
-    prefix = formatted[3]
-    if prefix not in ['7', '1']:
+    # Validate Kenyan mobile prefixes (7XX or 1XX after 254)
+    # Valid mobile prefixes: 254 7XX XXX XXX or 254 1XX XXX XXX
+    mobile_prefix = formatted[3]
+    if mobile_prefix not in ['7', '1']:
         return "Invalid phone number. Must be a Kenyan mobile number (07XX or 01XX)."
 
     return None
