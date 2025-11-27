@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request
 from models import db, User
 from services.notifications import notification_service
+from sqlalchemy.exc import IntegrityError
 import re
 import logging
 
@@ -147,9 +148,22 @@ def register():
         )
         new_user.set_password(password)
 
-        db.session.add(new_user)
-        db.session.commit()
-        logger.info(f"User registered successfully: id={new_user.id}")
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            logger.info(f"User registered successfully: id={new_user.id}")
+        except IntegrityError as e:
+            # Handle race condition: another request inserted the same email
+            # between our check and insert
+            db.session.rollback()
+            logger.warning(
+                f"Registration failed due to duplicate email (race condition): "
+                f"{email.lower()}"
+            )
+            return jsonify({
+                'success': False,
+                'error': 'Email is already in use'
+            }), 409
 
         # Send notification emails (non-blocking - failures don't affect registration)
         try:
@@ -305,4 +319,66 @@ def update_user(user_id):
         return jsonify({
             'success': False,
             'error': 'Failed to update user. Please try again later.'
+        }), 500
+
+
+@auth_bp.route('/check-email', methods=['POST'])
+def check_email_availability():
+    """Check if an email is available for registration.
+
+    This endpoint allows clients to pre-validate email availability
+    before attempting registration, providing immediate feedback to users.
+    """
+    try:
+        data = request.get_json(silent=True)
+        logger.debug("Email availability check request received")
+
+        if not data or 'email' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Email is required'
+            }), 400
+
+        email = sanitize_string(data.get('email'))
+
+        if not email:
+            return jsonify({
+                'success': False,
+                'error': 'Email is required'
+            }), 400
+
+        # Validate email format
+        if not validate_email(email):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid email format',
+                'available': False
+            }), 400
+
+        # Check if email exists
+        existing_user = User.query.filter_by(email=email.lower()).first()
+
+        if existing_user:
+            logger.debug(f"Email availability check: {email.lower()} is taken")
+            return jsonify({
+                'success': True,
+                'available': False,
+                'message': 'Email is already in use'
+            }), 200
+
+        logger.debug(f"Email availability check: {email.lower()} is available")
+        return jsonify({
+            'success': True,
+            'available': True,
+            'message': 'Email is available'
+        }), 200
+
+    except Exception as e:
+        logger.error(
+            f"Email availability check failed: {type(e).__name__}: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'Failed to check email availability. Please try again later.'
         }), 500

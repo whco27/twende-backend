@@ -334,3 +334,77 @@ def test_update_user_no_data(client, sample_user):
     assert response.status_code == 400
     data = response.get_json()
     assert data['success'] is False
+
+
+def test_check_email_available(client):
+    """Test checking availability of an unused email"""
+    response = client.post('/api/auth/check-email', json={
+        'email': 'available@example.com'
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['available'] is True
+    assert 'available' in data['message'].lower()
+
+
+def test_check_email_taken(client, sample_user):
+    """Test checking availability of an already registered email"""
+    response = client.post('/api/auth/check-email', json={
+        'email': 'test@example.com'
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['available'] is False
+    assert 'already in use' in data['message'].lower()
+
+
+def test_check_email_case_insensitive(client, sample_user):
+    """Test checking availability with different case"""
+    response = client.post('/api/auth/check-email', json={
+        'email': 'TEST@EXAMPLE.COM'
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['available'] is False
+
+
+def test_check_email_no_data(client):
+    """Test checking email without data"""
+    response = client.post('/api/auth/check-email', data='', content_type='application/json')
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+
+
+def test_check_email_missing_email(client):
+    """Test checking email with missing email field"""
+    response = client.post('/api/auth/check-email', json={})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+
+
+def test_check_email_invalid_format(client):
+    """Test checking email with invalid format"""
+    response = client.post('/api/auth/check-email', json={
+        'email': 'invalid-email'
+    })
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert data['available'] is False
+    assert 'invalid' in data['error'].lower()
+
+
+def test_check_email_with_whitespace(client):
+    """Test checking email with whitespace is trimmed"""
+    response = client.post('/api/auth/check-email', json={
+        'email': '  available@example.com  '
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['available'] is True

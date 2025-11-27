@@ -35,6 +35,7 @@ A Flask-based REST API backend for the Twende Tours application, providing tour 
 |--------|----------|-------------|
 | POST | `/api/auth/register` | Register a new user |
 | POST | `/api/auth/login` | Login user |
+| POST | `/api/auth/check-email` | Check email availability |
 | GET | `/api/auth/user/<id>` | Get user by ID |
 | PUT | `/api/auth/user/<id>` | Update user |
 
@@ -56,13 +57,58 @@ Register a new user account.
 ```
 
 **Validation Rules:**
-- `email`: Required, valid email format, max 255 characters
+- `email`: Required, valid email format, max 255 characters, must be unique
 - `password`: Required, minimum 8 characters
 - `first_name`: Required, max 100 characters
 - `last_name`: Required, max 100 characters
 - `phone_number`: Optional, max 20 characters
 
 **Note:** All string inputs are automatically trimmed of leading/trailing whitespace.
+
+**Error Responses:**
+- `400 Bad Request`: Validation errors (missing fields, invalid format, field too long)
+- `409 Conflict`: Email is already registered. Returns `{"success": false, "error": "User with this email already exists"}` or `{"success": false, "error": "Email is already in use"}` for race condition handling.
+- `500 Internal Server Error`: Server error during registration
+
+#### Check Email Availability
+
+**POST** `/api/auth/check-email`
+
+Pre-validate email availability before registration. Use this endpoint to provide immediate feedback to users.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "available": true,
+  "message": "Email is available"
+}
+```
+
+Or if email is taken:
+```json
+{
+  "success": true,
+  "available": false,
+  "message": "Email is already in use"
+}
+```
+
+**Error Response (400):**
+```json
+{
+  "success": false,
+  "error": "Invalid email format",
+  "available": false
+}
+```
 
 ### Bookings API (`/api/bookings`)
 
