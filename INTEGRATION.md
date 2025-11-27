@@ -427,7 +427,7 @@ export default {
 
 1. **Never commit `.env` files** - Add `.env` to your `.gitignore`
 2. **Use `.env.example`** - Create a template file for team members
-3. **Trailing slashes** - API URLs should NOT include trailing slashes
+3. **Trailing slashes** - API base URLs should NOT include trailing slashes to avoid double slashes when concatenating endpoints (e.g., use `https://api.example.com` not `https://api.example.com/`)
 4. **CORS Configuration** - If frontend is on a different domain, set `ENABLE_CORS=true` and add frontend URL to `FRONTEND_URL` in backend
 
 ## Testing the Integration
@@ -838,7 +838,9 @@ Use this script to test from a frontend context:
 ```javascript
 // test-registration.js - Run in browser console or Node.js
 
-const API_URL = 'https://your-backend.up.railway.app';
+// Use environment variable if available, otherwise fallback to placeholder
+const API_URL = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) 
+  || 'https://your-backend.up.railway.app';  // Replace with your actual Railway URL
 
 async function testRegistrationFlow() {
   console.log('Testing User Registration Flow...\n');
