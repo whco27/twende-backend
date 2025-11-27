@@ -28,6 +28,29 @@ def test_get_tours_empty(client):
     assert len(data) == 0
 
 
+def test_get_tours_with_pagination(client, sample_tour):
+    """Test getting tours with pagination"""
+    response = client.get('/api/tours/?page=1&per_page=10')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'tours' in data
+    assert 'pagination' in data
+    assert data['pagination']['page'] == 1
+    assert data['pagination']['per_page'] == 10
+    assert len(data['tours']) > 0
+
+
+def test_get_tours_filter_by_location(client, sample_tour):
+    """Test getting tours filtered by location"""
+    response = client.get('/api/tours/?location=Masai')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+    assert 'Masai' in data[0]['location']
+
+
 def test_create_tour(client):
     """Test creating a new tour"""
     tour_data = {

@@ -9,11 +9,51 @@ from .payments import payments_bp
 
 tours_bp = Blueprint('tours', __name__, url_prefix='/api/tours')
 
+# Default pagination settings
+DEFAULT_PAGE = 1
+DEFAULT_PER_PAGE = 20
+MAX_PER_PAGE = 100
+
+
 @tours_bp.route('/', methods=['GET'])
 def get_tours():
-    """Get all tours"""
+    """Get all tours with optional pagination"""
     try:
-        tours = Tour.query.all()
+        # Check if pagination is requested
+        page = request.args.get('page', type=int)
+        per_page = request.args.get('per_page', type=int)
+        location = request.args.get('location')
+
+        query = Tour.query
+
+        # Filter by location if provided
+        if location:
+            query = query.filter(Tour.location.ilike(f'%{location}%'))
+
+        # If pagination parameters are provided, return paginated results
+        if page is not None:
+            if page < 1:
+                page = DEFAULT_PAGE
+            if per_page is None or per_page < 1 or per_page > MAX_PER_PAGE:
+                per_page = DEFAULT_PER_PAGE
+
+            pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+            return jsonify({
+                'success': True,
+                'tours': [tour.to_dict() for tour in pagination.items],
+                'pagination': {
+                    'page': pagination.page,
+                    'per_page': pagination.per_page,
+                    'total': pagination.total,
+                    'pages': pagination.pages,
+                    'has_next': pagination.has_next,
+                    'has_prev': pagination.has_prev
+                }
+            }), 200
+
+        # Return all tours for backward compatibility
+        tours = query.all()
         return jsonify([tour.to_dict() for tour in tours]), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500

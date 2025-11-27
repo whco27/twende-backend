@@ -1,18 +1,31 @@
 """Booking routes for tour reservations"""
 from flask import Blueprint, jsonify, request
 from models import db, Booking, Tour, User
-from datetime import datetime
+from datetime import datetime, date, timezone
 from werkzeug.exceptions import NotFound
 
 bookings_bp = Blueprint('bookings', __name__, url_prefix='/api/bookings')
 
+# Default pagination settings
+DEFAULT_PAGE = 1
+DEFAULT_PER_PAGE = 20
+MAX_PER_PAGE = 100
+
 
 @bookings_bp.route('/', methods=['GET'])
 def get_bookings():
-    """Get all bookings (optionally filtered by user_id)"""
+    """Get all bookings (optionally filtered by user_id) with pagination"""
     try:
         user_id = request.args.get('user_id', type=int)
         status = request.args.get('status')
+        page = request.args.get('page', DEFAULT_PAGE, type=int)
+        per_page = request.args.get('per_page', DEFAULT_PER_PAGE, type=int)
+
+        # Validate pagination parameters
+        if page < 1:
+            page = DEFAULT_PAGE
+        if per_page < 1 or per_page > MAX_PER_PAGE:
+            per_page = DEFAULT_PER_PAGE
 
         query = Booking.query
 
@@ -21,11 +34,22 @@ def get_bookings():
         if status:
             query = query.filter_by(status=status)
 
-        bookings = query.order_by(Booking.created_at.desc()).all()
+        # Apply pagination
+        pagination = query.order_by(Booking.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
 
         return jsonify({
             'success': True,
-            'bookings': [booking.to_dict() for booking in bookings]
+            'bookings': [booking.to_dict() for booking in pagination.items],
+            'pagination': {
+                'page': pagination.page,
+                'per_page': pagination.per_page,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
         }), 200
 
     except Exception as e:
@@ -122,6 +146,14 @@ def create_booking():
             return jsonify({
                 'success': False,
                 'error': 'Invalid tour_date format. Use YYYY-MM-DD'
+            }), 400
+
+        # Validate tour date is not in the past
+        today = date.today()
+        if tour_date < today:
+            return jsonify({
+                'success': False,
+                'error': 'Cannot book a tour for a past date'
             }), 400
 
         # Calculate total amount
@@ -246,10 +278,59 @@ def cancel_booking(booking_id):
         }), 500
 
 
+@bookings_bp.route('/<int:booking_id>', methods=['DELETE'])
+def delete_booking(booking_id):
+    """Delete a booking permanently"""
+    try:
+        booking = db.session.get(Booking, booking_id)
+        if not booking:
+            return jsonify({
+                'success': False,
+                'error': 'Booking not found'
+            }), 404
+
+        # Cannot delete bookings with completed payments
+        if booking.payment_status == 'paid':
+            return jsonify({
+                'success': False,
+                'error': 'Cannot delete a booking that has been paid. Please cancel instead.'
+            }), 400
+
+        # Restore available slots if booking was not already cancelled
+        if booking.status != 'cancelled':
+            tour = db.session.get(Tour, booking.tour_id)
+            if tour:
+                tour.available_slots += booking.number_of_guests
+
+        db.session.delete(booking)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Booking deleted successfully'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @bookings_bp.route('/user/<int:user_id>', methods=['GET'])
 def get_user_bookings(user_id):
-    """Get all bookings for a specific user"""
+    """Get all bookings for a specific user with pagination"""
     try:
+        page = request.args.get('page', DEFAULT_PAGE, type=int)
+        per_page = request.args.get('per_page', DEFAULT_PER_PAGE, type=int)
+
+        # Validate pagination parameters
+        if page < 1:
+            page = DEFAULT_PAGE
+        if per_page < 1 or per_page > MAX_PER_PAGE:
+            per_page = DEFAULT_PER_PAGE
+
         # Verify user exists
         user = db.session.get(User, user_id)
         if not user:
@@ -258,11 +339,21 @@ def get_user_bookings(user_id):
                 'error': 'User not found'
             }), 404
 
-        bookings = Booking.query.filter_by(user_id=user_id).order_by(Booking.created_at.desc()).all()
+        pagination = Booking.query.filter_by(user_id=user_id).order_by(
+            Booking.created_at.desc()
+        ).paginate(page=page, per_page=per_page, error_out=False)
 
         return jsonify({
             'success': True,
-            'bookings': [booking.to_dict() for booking in bookings]
+            'bookings': [booking.to_dict() for booking in pagination.items],
+            'pagination': {
+                'page': pagination.page,
+                'per_page': pagination.per_page,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
         }), 200
 
     except Exception as e:
