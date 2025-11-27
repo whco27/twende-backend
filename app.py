@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
-from models import db, Tour, User, Booking, Payment
-from routes import tours_bp, auth_bp, bookings_bp, payments_bp
+from models import db, Tour, User, Booking, Payment, TripSchedule, Reminder
+from routes import tours_bp, auth_bp, bookings_bp, payments_bp, trip_schedules_bp
 from services.notifications import notification_service, mail
 import os
 import logging
@@ -81,6 +81,7 @@ app.register_blueprint(tours_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(bookings_bp)
 app.register_blueprint(payments_bp)
+app.register_blueprint(trip_schedules_bp)
 
 @app.route("/")
 def root():
@@ -96,6 +97,7 @@ def root():
             "auth": "/api/auth",
             "bookings": "/api/bookings",
             "payments": "/api/payments",
+            "trip_schedules": "/api/trip-schedules",
             "health": "/health"
         }
     })

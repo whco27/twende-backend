@@ -279,6 +279,124 @@ This is an automated notification from Twende Tours.
             )
             return False
 
+    def send_trip_reminder_email(self, user, trip_schedule, reminder):
+        """
+        Send trip reminder email to user
+
+        Args:
+            user: User object with email, first_name, last_name attributes
+            trip_schedule: TripSchedule object with title, location, departure_date
+            reminder: Reminder object with message
+
+        Returns:
+            bool: True if email sent successfully, False otherwise
+        """
+        if not self.enabled:
+            logger.info(
+                f"Email notifications disabled - skipping trip reminder "
+                f"for user id={user.id}"
+            )
+            return False
+
+        try:
+            sender = current_app.config.get(
+                'MAIL_DEFAULT_SENDER',
+                os.getenv('MAIL_DEFAULT_SENDER', 'noreply@twendetours.com')
+            )
+
+            msg = Message(
+                subject=f'Trip Reminder: {trip_schedule.title}',
+                sender=sender,
+                recipients=[user.email]
+            )
+
+            # Format departure date
+            departure_str = (
+                trip_schedule.departure_date.strftime('%B %d, %Y at %H:%M')
+                if trip_schedule.departure_date else 'Not specified'
+            )
+
+            # Custom message or default
+            custom_message = reminder.message if reminder.message else ''
+
+            msg.body = f"""Hello {user.first_name},
+
+This is a reminder about your upcoming trip!
+
+Trip Details:
+- Trip: {trip_schedule.title}
+- Location: {trip_schedule.location}
+- Departure: {departure_str}
+
+{custom_message}
+
+Please make sure you're prepared for your adventure!
+
+Best regards,
+The Twende Tours Team
+"""
+
+            # Escape user data for HTML to prevent XSS
+            safe_first_name = html_escape(user.first_name)
+            safe_title = html_escape(trip_schedule.title)
+            safe_location = html_escape(trip_schedule.location)
+            safe_custom_message = html_escape(custom_message) if custom_message else ''
+
+            msg.html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #FF9800; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .details {{ background-color: white; padding: 15px; border-radius: 5px; margin: 15px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        .custom-message {{ background-color: #fff3e0; padding: 15px; border-left: 4px solid #FF9800; margin: 15px 0; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Trip Reminder</h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{safe_first_name}</strong>,</p>
+            <p>This is a reminder about your upcoming trip!</p>
+
+            <div class="details">
+                <h3>Trip Details:</h3>
+                <p><strong>Trip:</strong> {safe_title}</p>
+                <p><strong>Location:</strong> {safe_location}</p>
+                <p><strong>Departure:</strong> {departure_str}</p>
+            </div>
+
+            {f'<div class="custom-message"><p>{safe_custom_message}</p></div>' if safe_custom_message else ''}
+
+            <p>Please make sure you're prepared for your adventure!</p>
+        </div>
+        <div class="footer">
+            <p>Best regards,<br>The Twende Tours Team</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+            mail.send(msg)
+            logger.info(
+                f"Trip reminder email sent to user id={user.id} for trip {trip_schedule.id}"
+            )
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Failed to send trip reminder email to "
+                f"user id={user.id}: {type(e).__name__}: {str(e)}"
+            )
+            return False
+
 
 # Create singleton instance
 notification_service = NotificationService()

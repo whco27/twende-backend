@@ -166,6 +166,25 @@ Or if email is taken:
 | GET | `/api/payments/health` | Check M-Pesa service configuration and connectivity |
 | GET | `/api/payments/config/status` | Check M-Pesa configuration status |
 
+### Trip Schedules API (`/api/trip-schedules`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/trip-schedules/` | Get all trip schedules (supports `user_id`, `status`, `page`, `per_page` query params) |
+| GET | `/api/trip-schedules/<id>` | Get trip schedule by ID |
+| POST | `/api/trip-schedules/` | Create a new trip schedule |
+| PUT | `/api/trip-schedules/<id>` | Update a trip schedule |
+| DELETE | `/api/trip-schedules/<id>` | Delete a trip schedule |
+| GET | `/api/trip-schedules/user/<user_id>` | Get user's trip schedules |
+| GET | `/api/trip-schedules/<id>/reminders` | Get reminders for a trip schedule |
+| POST | `/api/trip-schedules/<id>/reminders` | Create a reminder for a trip schedule |
+| GET | `/api/trip-schedules/reminders/<id>` | Get reminder by ID |
+| PUT | `/api/trip-schedules/reminders/<id>` | Update a reminder |
+| DELETE | `/api/trip-schedules/reminders/<id>` | Delete a reminder |
+| GET | `/api/trip-schedules/reminders/pending` | Get all pending reminders due to be sent |
+| POST | `/api/trip-schedules/reminders/<id>/send` | Send a specific reminder |
+| POST | `/api/trip-schedules/process-reminders` | Process all pending reminders (for cron jobs) |
+
 ### Health Check
 
 | Method | Endpoint | Description |
@@ -354,6 +373,8 @@ The application uses the following models:
 - **User**: User accounts with email, password, profile info
 - **Booking**: Tour reservations linking users to tours
 - **Payment**: M-Pesa payment records linked to bookings
+- **TripSchedule**: Trip schedules with travel dates, locations, and statuses
+- **Reminder**: Reminder schedules and notification history linked to trip schedules
 
 ## Testing
 
@@ -492,12 +513,15 @@ twende-backend/
 │   ├── tour.py              # Tour model
 │   ├── user.py              # User model
 │   ├── booking.py           # Booking model
-│   └── payment.py           # Payment model
+│   ├── payment.py           # Payment model
+│   ├── trip_schedule.py     # Trip schedule model
+│   └── reminder.py          # Reminder model
 ├── routes/                   # API route handlers
 │   ├── __init__.py          # Tours routes
 │   ├── auth.py              # Authentication routes
 │   ├── bookings.py          # Booking routes
-│   └── payments.py          # Daraja payment routes
+│   ├── payments.py          # Daraja payment routes
+│   └── trip_schedules.py    # Trip schedule and reminder routes
 ├── services/                 # Business logic services
 │   ├── __init__.py
 │   └── notifications.py     # Email notification service
@@ -515,7 +539,8 @@ twende-backend/
     ├── test_frontend_serving.py
     ├── test_notifications.py
     ├── test_payments.py
-    └── test_tours.py
+    ├── test_tours.py
+    └── test_trip_schedules.py
 ```
 
 ## Related Repositories
