@@ -101,3 +101,38 @@ def test_api_routes_not_affected_by_frontend(client):
     # Test health endpoint
     response = client.get('/health')
     assert response.status_code == 200
+
+
+def test_daraja_static_files_served(client):
+    """Test that Daraja payment files are served from public/daraja directory"""
+    from app import STATIC_FOLDER
+
+    daraja_dir = os.path.join(STATIC_FOLDER, 'daraja')
+
+    # Verify the daraja payment page exists and is served
+    if os.path.exists(os.path.join(daraja_dir, 'payment.html')):
+        response = client.get('/daraja/payment.html')
+        assert response.status_code == 200
+        assert b'M-Pesa' in response.data or b'payment' in response.data.lower()
+
+
+def test_daraja_subdirectory_serving(client):
+    """Test that files in daraja subdirectory are served correctly"""
+    from app import STATIC_FOLDER
+
+    daraja_dir = os.path.join(STATIC_FOLDER, 'daraja')
+    os.makedirs(daraja_dir, exist_ok=True)
+
+    # Create a test file in daraja directory
+    test_file_path = os.path.join(daraja_dir, 'test_daraja.txt')
+    try:
+        with open(test_file_path, 'w') as f:
+            f.write('daraja test content')
+
+        response = client.get('/daraja/test_daraja.txt')
+        assert response.status_code == 200
+        assert b'daraja test content' in response.data
+    finally:
+        # Cleanup
+        if os.path.exists(test_file_path):
+            os.remove(test_file_path)

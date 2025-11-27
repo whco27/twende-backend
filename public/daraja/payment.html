@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M-Pesa Payment - Twende Tours</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            max-width: 450px;
+            width: 100%;
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        .form-group input.error {
+            border-color: #f44336;
+        }
+        .error-text {
+            color: #f44336;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .amount-display {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .amount-display .label {
+            color: #666;
+            font-size: 14px;
+        }
+        .amount-display .amount {
+            color: #333;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #45a049;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .btn-loading {
+            position: relative;
+        }
+        .btn-loading::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid white;
+            border-top-color: transparent;
+            border-radius: 50%;
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: translateY(-50%) rotate(360deg); }
+        }
+        .status {
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+        .status.pending {
+            display: block;
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.success {
+            display: block;
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            display: block;
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .instructions h3 {
+            color: #1565c0;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .instructions ol {
+            color: #333;
+            font-size: 13px;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin-bottom: 5px;
+        }
+        .mpesa-text-logo {
+            font-size: 36px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .mpesa-text-logo span {
+            background: #4CAF50;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <!-- Text-based logo to avoid external dependencies -->
+            <div class="mpesa-text-logo">
+                <span>M</span>-PESA
+            </div>
+            <h1>Pay with M-Pesa</h1>
+            <p>Complete your Twende Tours booking payment</p>
+        </div>
+
+        <form id="paymentForm">
+            <div class="form-group">
+                <label for="bookingId">Booking ID</label>
+                <input type="number" id="bookingId" name="bookingId" placeholder="Enter your booking ID" required>
+            </div>
+
+            <div class="form-group">
+                <label for="phoneNumber">M-Pesa Phone Number</label>
+                <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="07XXXXXXXX or 254XXXXXXXXX" required>
+                <small style="color: #666; font-size: 12px;">Enter your Safaricom M-Pesa registered number</small>
+            </div>
+
+            <div class="amount-display" id="amountDisplay" style="display: none;">
+                <div class="label">Amount to Pay</div>
+                <div class="amount" id="paymentAmount">KES 0</div>
+            </div>
+
+            <button type="button" id="loadBookingBtn" class="btn" style="margin-bottom: 10px; background: #2196F3;">
+                Load Booking Details
+            </button>
+
+            <button type="submit" class="btn" id="payBtn" disabled>
+                Pay Now
+            </button>
+        </form>
+
+        <div id="statusMessage" class="status"></div>
+
+        <div class="instructions">
+            <h3>How it works:</h3>
+            <ol>
+                <li>Enter your booking ID and M-Pesa phone number</li>
+                <li>Click "Load Booking Details" to verify your booking</li>
+                <li>Click "Pay Now" to receive the M-Pesa prompt</li>
+                <li>Enter your M-Pesa PIN on your phone to complete payment</li>
+                <li>Wait for confirmation</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // API Base URL - uses same origin when served from backend
+        const API_BASE = '';
+
+        let currentBooking = null;
+        let checkoutRequestId = null;
+
+        const bookingIdInput = document.getElementById('bookingId');
+        const phoneInput = document.getElementById('phoneNumber');
+        const loadBtn = document.getElementById('loadBookingBtn');
+        const payBtn = document.getElementById('payBtn');
+        const amountDisplay = document.getElementById('amountDisplay');
+        const paymentAmount = document.getElementById('paymentAmount');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // Load booking details
+        loadBtn.addEventListener('click', async () => {
+            const bookingId = bookingIdInput.value.trim();
+            if (!bookingId) {
+                showStatus('Please enter a booking ID', 'error');
+                return;
+            }
+
+            loadBtn.disabled = true;
+            loadBtn.textContent = 'Loading...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/bookings/${bookingId}`);
+                const data = await response.json();
+
+                if (data.success && data.booking) {
+                    currentBooking = data.booking;
+                    paymentAmount.textContent = `KES ${currentBooking.total_amount.toLocaleString()}`;
+                    amountDisplay.style.display = 'block';
+                    payBtn.disabled = false;
+                    showStatus(`Booking found: ${currentBooking.tour.title}`, 'success');
+                } else {
+                    showStatus(data.error || 'Booking not found', 'error');
+                    payBtn.disabled = true;
+                    amountDisplay.style.display = 'none';
+                }
+            } catch (error) {
+                showStatus('Failed to load booking. Please try again.', 'error');
+                payBtn.disabled = true;
+            } finally {
+                loadBtn.disabled = false;
+                loadBtn.textContent = 'Load Booking Details';
+            }
+        });
+
+        // Submit payment
+        document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!currentBooking) {
+                showStatus('Please load booking details first', 'error');
+                return;
+            }
+
+            const phoneNumber = phoneInput.value.trim();
+            if (!phoneNumber) {
+                showStatus('Please enter your M-Pesa phone number', 'error');
+                return;
+            }
+
+            // Validate phone number format
+            const cleanPhone = phoneNumber.replace(/\D/g, '');
+            if (cleanPhone.length < 9 || cleanPhone.length > 12) {
+                showStatus('Invalid phone number format', 'error');
+                return;
+            }
+
+            payBtn.disabled = true;
+            payBtn.classList.add('btn-loading');
+            payBtn.textContent = 'Processing...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/payments/initiate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        booking_id: currentBooking.id,
+                        phone_number: phoneNumber
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    checkoutRequestId = data.checkout_request_id;
+                    showStatus('Payment initiated! Check your phone for the M-Pesa prompt.', 'pending');
+                    
+                    // Start polling for payment status
+                    pollPaymentStatus();
+                } else {
+                    showStatus(data.error || 'Failed to initiate payment', 'error');
+                    payBtn.disabled = false;
+                }
+            } catch (error) {
+                showStatus('Failed to initiate payment. Please try again.', 'error');
+                payBtn.disabled = false;
+            } finally {
+                payBtn.classList.remove('btn-loading');
+                payBtn.textContent = 'Pay Now';
+            }
+        });
+
+        // Poll payment status
+        async function pollPaymentStatus() {
+            if (!checkoutRequestId) return;
+
+            let attempts = 0;
+            const maxAttempts = 30; // Poll for up to 2.5 minutes
+            const interval = 5000; // 5 seconds
+
+            const poll = async () => {
+                attempts++;
+
+                try {
+                    const response = await fetch(`${API_BASE}/api/payments/status/${checkoutRequestId}`);
+                    const data = await response.json();
+
+                    if (data.success && data.payment) {
+                        const status = data.payment.status;
+
+                        if (status === 'completed') {
+                            showStatus('Payment successful! Your booking is confirmed.', 'success');
+                            payBtn.disabled = true;
+                            return;
+                        } else if (status === 'failed') {
+                            showStatus(`Payment failed: ${data.payment.result_description || 'Please try again'}`, 'error');
+                            payBtn.disabled = false;
+                            return;
+                        }
+                    }
+
+                    if (attempts < maxAttempts) {
+                        setTimeout(poll, interval);
+                    } else {
+                        showStatus('Payment timeout. Please check your M-Pesa messages or try again.', 'error');
+                        payBtn.disabled = false;
+                    }
+                } catch (error) {
+                    if (attempts < maxAttempts) {
+                        setTimeout(poll, interval);
+                    } else {
+                        showStatus('Failed to check payment status. Please verify in M-Pesa.', 'error');
+                        payBtn.disabled = false;
+                    }
+                }
+            };
+
+            setTimeout(poll, interval);
+        }
+
+        // Show status message
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status ${type}`;
+        }
+    </script>
+</body>
+</html>
