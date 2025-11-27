@@ -1,7 +1,5 @@
 """Tests for frontend static file serving"""
 import os
-import tempfile
-import shutil
 
 
 def test_root_endpoint_without_frontend(client):
@@ -34,7 +32,7 @@ def test_404_non_api_route_without_frontend(client):
 
 def test_static_file_serving(client):
     """Test that static files are served from public directory"""
-    from app import app, STATIC_FOLDER
+    from app import STATIC_FOLDER
 
     # Create a test static file
     os.makedirs(STATIC_FOLDER, exist_ok=True)
@@ -54,7 +52,7 @@ def test_static_file_serving(client):
 
 def test_root_serves_index_html_when_exists(client):
     """Test that root serves index.html when frontend is deployed"""
-    from app import app, STATIC_FOLDER
+    from app import STATIC_FOLDER
 
     # Create a test index.html
     os.makedirs(STATIC_FOLDER, exist_ok=True)
@@ -74,7 +72,7 @@ def test_root_serves_index_html_when_exists(client):
 
 def test_spa_route_serves_index_html_when_exists(client):
     """Test that SPA routes serve index.html for client-side routing"""
-    from app import app, STATIC_FOLDER
+    from app import STATIC_FOLDER
 
     # Create a test index.html
     os.makedirs(STATIC_FOLDER, exist_ok=True)
