@@ -18,6 +18,65 @@ DEFAULT_PER_PAGE = 20
 MAX_PER_PAGE = 100
 
 
+def validate_tour_string_fields(data, fields):
+    """Validate that string fields are not empty.
+    
+    Args:
+        data: Dictionary containing the data to validate
+        fields: List of field names to validate
+        
+    Returns:
+        tuple: (is_valid, error_message) - is_valid is True if all fields are valid,
+               error_message contains the error description if validation fails
+    """
+    for field in fields:
+        value = data.get(field)
+        if value is None or not str(value).strip():
+            return False, f'{field} cannot be empty'
+    return True, None
+
+
+def validate_tour_price(price_value):
+    """Validate that price is a positive number.
+    
+    Args:
+        price_value: The price value to validate
+        
+    Returns:
+        tuple: (is_valid, price_or_error) - if valid, returns (True, float_price),
+               if invalid, returns (False, error_message)
+    """
+    try:
+        price = float(price_value)
+        if price <= 0:
+            return False, 'Price must be a positive number'
+        return True, price
+    except (ValueError, TypeError):
+        return False, 'Invalid price format. Price must be a number'
+
+
+def validate_tour_available_slots(slots_value, default=10):
+    """Validate that available_slots is a non-negative integer.
+    
+    Args:
+        slots_value: The available_slots value to validate
+        default: Default value if slots_value is None
+        
+    Returns:
+        tuple: (is_valid, slots_or_error) - if valid, returns (True, int_slots),
+               if invalid, returns (False, error_message)
+    """
+    if slots_value is None:
+        return True, default
+    try:
+        slots = int(slots_value)
+        if slots < 0:
+            return False, 'available_slots cannot be negative'
+        return True, slots
+    except (ValueError, TypeError):
+        return False, 'Invalid available_slots format. Must be a non-negative integer'
+
+
 @tours_bp.route('/', methods=['GET'])
 def get_tours():
     """Get all tours with optional pagination"""
@@ -126,26 +185,21 @@ def create_tour():
         
         # Validate that string fields are not empty
         string_fields = ['title', 'description', 'duration', 'location']
-        for field in string_fields:
-            if not data[field] or not str(data[field]).strip():
-                return jsonify({'error': f'{field} cannot be empty'}), 400
+        is_valid, error_msg = validate_tour_string_fields(data, string_fields)
+        if not is_valid:
+            return jsonify({'error': error_msg}), 400
         
         # Validate price is a positive number
-        try:
-            price = float(data['price'])
-            if price <= 0:
-                return jsonify({'error': 'Price must be a positive number'}), 400
-        except (ValueError, TypeError):
-            return jsonify({'error': 'Invalid price format. Price must be a number'}), 400
+        is_valid, price_result = validate_tour_price(data['price'])
+        if not is_valid:
+            return jsonify({'error': price_result}), 400
+        price = price_result
         
         # Validate available_slots if provided
-        available_slots = data.get('available_slots', 10)
-        try:
-            available_slots = int(available_slots)
-            if available_slots < 0:
-                return jsonify({'error': 'available_slots cannot be negative'}), 400
-        except (ValueError, TypeError):
-            return jsonify({'error': 'Invalid available_slots format. Must be a non-negative integer'}), 400
+        is_valid, slots_result = validate_tour_available_slots(data.get('available_slots'))
+        if not is_valid:
+            return jsonify({'error': slots_result}), 400
+        available_slots = slots_result
         
         # Check if tour with same title already exists (provides better error response)
         # Note: IntegrityError catch below handles race condition at database level
@@ -193,27 +247,24 @@ def update_tour(tour_id):
         
         # Validate string fields if provided
         string_fields = ['title', 'description', 'duration', 'location']
-        for field in string_fields:
-            if field in data and (not data[field] or not str(data[field]).strip()):
-                return jsonify({'error': f'{field} cannot be empty'}), 400
+        # Filter to only include fields that are present in the data
+        fields_to_validate = [f for f in string_fields if f in data]
+        if fields_to_validate:
+            is_valid, error_msg = validate_tour_string_fields(data, fields_to_validate)
+            if not is_valid:
+                return jsonify({'error': error_msg}), 400
         
         # Validate price if provided
         if 'price' in data:
-            try:
-                price = float(data['price'])
-                if price <= 0:
-                    return jsonify({'error': 'Price must be a positive number'}), 400
-            except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid price format. Price must be a number'}), 400
+            is_valid, price_result = validate_tour_price(data['price'])
+            if not is_valid:
+                return jsonify({'error': price_result}), 400
         
         # Validate available_slots if provided
         if 'available_slots' in data:
-            try:
-                available_slots = int(data['available_slots'])
-                if available_slots < 0:
-                    return jsonify({'error': 'available_slots cannot be negative'}), 400
-            except (ValueError, TypeError):
-                return jsonify({'error': 'Invalid available_slots format. Must be a non-negative integer'}), 400
+            is_valid, slots_result = validate_tour_available_slots(data['available_slots'])
+            if not is_valid:
+                return jsonify({'error': slots_result}), 400
         
         # Update fields if provided
         if 'title' in data:

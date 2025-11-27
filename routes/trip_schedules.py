@@ -34,6 +34,24 @@ def parse_datetime(date_str):
         return None
 
 
+def validate_trip_schedule_string_fields(data, fields):
+    """Validate that string fields are not empty.
+    
+    Args:
+        data: Dictionary containing the data to validate
+        fields: List of field names to validate
+        
+    Returns:
+        tuple: (is_valid, error_message) - is_valid is True if all fields are valid,
+               error_message contains the error description if validation fails
+    """
+    for field in fields:
+        value = data.get(field)
+        if value is None or not str(value).strip():
+            return False, f'{field} cannot be empty'
+    return True, None
+
+
 @trip_schedules_bp.route('/', methods=['GET'])
 def get_trip_schedules():
     """Get all trip schedules with optional filtering and pagination"""
@@ -129,12 +147,12 @@ def create_trip_schedule():
 
         # Validate that string fields are not empty
         string_fields = ['title', 'location']
-        for field in string_fields:
-            if not data[field] or not str(data[field]).strip():
-                return jsonify({
-                    'success': False,
-                    'error': f'{field} cannot be empty'
-                }), 400
+        is_valid, error_msg = validate_trip_schedule_string_fields(data, string_fields)
+        if not is_valid:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
 
         # Verify user exists
         user = db.session.get(User, data['user_id'])
@@ -223,11 +241,14 @@ def update_trip_schedule(schedule_id):
 
         # Validate string fields if provided
         string_fields = ['title', 'location']
-        for field in string_fields:
-            if field in data and (not data[field] or not str(data[field]).strip()):
+        # Filter to only include fields that are present in the data
+        fields_to_validate = [f for f in string_fields if f in data]
+        if fields_to_validate:
+            is_valid, error_msg = validate_trip_schedule_string_fields(data, fields_to_validate)
+            if not is_valid:
                 return jsonify({
                     'success': False,
-                    'error': f'{field} cannot be empty'
+                    'error': error_msg
                 }), 400
 
         # Update fields if provided
