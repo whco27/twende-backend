@@ -835,7 +835,7 @@ def get_upcoming_reminders():
         page = request.args.get('page', DEFAULT_PAGE, type=int)
         per_page = request.args.get('per_page', DEFAULT_PER_PAGE, type=int)
 
-        # Validate days_ahead (must be positive)
+        # Validate days_ahead (must be non-negative)
         if days_ahead < 0:
             return jsonify({
                 'success': False,
@@ -852,7 +852,11 @@ def get_upcoming_reminders():
         end_date = now + timedelta(days=days_ahead)
 
         # Build query for reminders within the date range
-        query = Reminder.query.filter(
+        # Use joinedload to eagerly load trip_schedule and avoid N+1 queries
+        from sqlalchemy.orm import joinedload
+        query = Reminder.query.options(
+            joinedload(Reminder.trip_schedule)
+        ).filter(
             Reminder.remind_at >= now,
             Reminder.remind_at <= end_date
         )
