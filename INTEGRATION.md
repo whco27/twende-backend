@@ -268,7 +268,9 @@ fetch(`/api/tours/`);
 | `/api/tours/<id>` | GET | Get tour details |
 | `/api/tours/` | POST | Create tour |
 | `/api/tours/search` | GET | Search tours (supports `title`, `location`, `min_price`, `max_price`, `page`, `per_page` params) |
-| `/api/tours/seed` | POST | Seed database with default tours |
+| `/api/tours/seed` | POST | Seed database with default tours (30+ Kenyan tours) |
+| `/api/tours/bulk-import` | POST | Bulk import tours from frontend data |
+| `/api/tours/by-title/<title>` | GET | Get tour by exact title |
 | `/api/auth/register` | POST | User registration |
 | `/api/auth/login` | POST | User login |
 | `/api/auth/check-email` | POST | Check email availability |
@@ -1039,7 +1041,7 @@ const tour = await fetch(`${API_URL}/api/tours/${tourId}`).then(r => r.json());
 
 ### 2. Seed Tours on Deployment
 
-When deploying a new environment, seed the database with default tours:
+When deploying a new environment, seed the database with default tours (30+ Kenyan tours including safaris, beach getaways, and cultural experiences):
 
 ```bash
 # Call the seed endpoint after deployment
@@ -1059,6 +1061,43 @@ async function ensureToursExist() {
     await fetch(`${API_URL}/api/tours/seed`, { method: 'POST' });
   }
 }
+```
+
+### 2.1 Bulk Import Tours from Frontend
+
+If you have custom tour data in your frontend, you can bulk import it:
+
+```javascript
+// Bulk import tours from frontend data
+async function bulkImportTours(toursData) {
+  const response = await fetch(`${API_URL}/api/tours/bulk-import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      tours: toursData,
+      update_existing: false  // Set to true to update existing tours
+    })
+  });
+  
+  const result = await response.json();
+  console.log(`Created: ${result.created_count}, Updated: ${result.updated_count}, Skipped: ${result.skipped_count}`);
+  return result;
+}
+
+// Example usage with frontend tour data
+const frontendTours = [
+  {
+    title: 'Custom Safari Tour',
+    description: 'Your custom tour description',
+    price: 50000.0,
+    duration: '3 days',
+    location: 'Custom Location',
+    image_url: 'https://example.com/image.jpg',  // optional
+    available_slots: 20  // optional, defaults to 10
+  }
+];
+
+bulkImportTours(frontendTours);
 ```
 
 ### 3. Search Tours by Title
@@ -1174,13 +1213,32 @@ curl "https://your-backend.up.railway.app/api/payments/?booking_id=123"
 | `PAYMENT_NOT_FOUND` | Payment record not found | Check checkout_request_id is correct |
 | `SERVICE_NOT_CONFIGURED` | Daraja credentials missing | Configure DARAJA_* environment variables |
 | `INVALID_PHONE` | Invalid M-Pesa phone number | Use format 07XXXXXXXX or 254XXXXXXXXX |
+| `NO_DATA` | No JSON data in request | Ensure request includes JSON body |
+| `NO_TOURS` | Empty tours array in bulk import | Provide at least one tour in the array |
+| `DUPLICATE_TITLE` | Tour with same title exists | Use bulk-import with `update_existing: true` |
 
 ### 9. Database Migration Checklist
 
 When migrating or setting up a new environment:
 
 1. ✅ Verify database connection with `/health` endpoint
-2. ✅ Seed default tours with `POST /api/tours/seed`
-3. ✅ Verify tours exist with `GET /api/tours/`
-4. ✅ Test payment configuration with `GET /api/payments/health`
-5. ✅ Create a test booking to verify full flow
+2. ✅ Seed default tours with `POST /api/tours/seed` (creates 30+ tours)
+3. ✅ Or use `python scripts/init_tours.py` to initialize from command line
+4. ✅ Verify tours exist with `GET /api/tours/`
+5. ✅ Test payment configuration with `GET /api/payments/health`
+6. ✅ Create a test booking to verify full flow
+
+### 10. Database Initialization Script
+
+For command-line database initialization, use the provided script:
+
+```bash
+# Initialize tours database (only adds missing tours)
+python scripts/init_tours.py
+
+# Force reinitialize (deletes existing tours and repopulates)
+python scripts/init_tours.py --force
+
+# Quiet mode (suppress output except errors)
+python scripts/init_tours.py --quiet
+```

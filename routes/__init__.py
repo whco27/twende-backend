@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from models.tour import db, Tour
 from werkzeug.exceptions import NotFound
 from sqlalchemy.exc import IntegrityError
+from data.tours_data import DEFAULT_TOURS
 
 # Import additional blueprints
 from .auth import auth_bp
@@ -277,73 +278,17 @@ def seed_tours():
     
     This endpoint creates a set of default tours if they don't exist.
     Used to ensure the database has tour data for frontend integration.
+    The tour data is loaded from data/tours_data.py which contains
+    comprehensive Kenyan safari and travel experiences.
     
     Returns:
         JSON object with the created or existing tours
     """
     try:
-        # Default tours to seed
-        default_tours = [
-            {
-                'title': 'Masai Mara 3-Day Safari',
-                'description': 'Experience the world-famous Masai Mara Game Reserve with expert guides. Witness the Great Migration and spot the Big Five in their natural habitat.',
-                'price': 45000.0,
-                'duration': '3 days',
-                'location': 'Masai Mara',
-                'image_url': 'https://images.unsplash.com/photo-1516426122078-c23e76319801?w=800',
-                'available_slots': 20
-            },
-            {
-                'title': 'Mount Kenya Hiking Adventure',
-                'description': 'Conquer Africa\'s second-highest peak. This challenging trek offers stunning views and unique alpine ecosystems.',
-                'price': 65000.0,
-                'duration': '5 days',
-                'location': 'Mount Kenya',
-                'image_url': 'https://images.unsplash.com/photo-1489493887464-892be6d1daae?w=800',
-                'available_slots': 15
-            },
-            {
-                'title': 'Amboseli National Park Tour',
-                'description': 'Enjoy breathtaking views of Mount Kilimanjaro while observing elephants and other wildlife in Amboseli.',
-                'price': 35000.0,
-                'duration': '2 days',
-                'location': 'Amboseli',
-                'image_url': 'https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?w=800',
-                'available_slots': 25
-            },
-            {
-                'title': 'Diani Beach Getaway',
-                'description': 'Relax on the pristine white sands of Diani Beach. Enjoy water sports, snorkeling, and coastal Swahili cuisine.',
-                'price': 28000.0,
-                'duration': '4 days',
-                'location': 'Diani Beach',
-                'image_url': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
-                'available_slots': 30
-            },
-            {
-                'title': 'Lake Nakuru Bird Watching',
-                'description': 'Discover the pink flamingos and diverse bird species at Lake Nakuru. Also spot rhinos, lions, and leopards.',
-                'price': 22000.0,
-                'duration': '1 day',
-                'location': 'Lake Nakuru',
-                'image_url': 'https://images.unsplash.com/photo-1575550959106-5a7defe28b56?w=800',
-                'available_slots': 40
-            },
-            {
-                'title': 'Tsavo East & West Safari',
-                'description': 'Explore Kenya\'s largest national park. See the famous red elephants, diverse landscapes, and Mzima Springs.',
-                'price': 55000.0,
-                'duration': '4 days',
-                'location': 'Tsavo',
-                'image_url': 'https://images.unsplash.com/photo-1534177616064-ef1b8e0f4fa4?w=800',
-                'available_slots': 18
-            }
-        ]
-
         created_tours = []
         existing_tours = []
 
-        for tour_data in default_tours:
+        for tour_data in DEFAULT_TOURS:
             # Check if tour with same title already exists
             existing = Tour.query.filter(Tour.title.ilike(tour_data['title'])).first()
             if existing:
@@ -364,6 +309,153 @@ def seed_tours():
             'total_tours': len(created_tours) + len(existing_tours)
         }), 201 if created_tours else 200
 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@tours_bp.route('/bulk-import', methods=['POST'])
+def bulk_import_tours():
+    """Bulk import tours from frontend data.
+    
+    This endpoint receives an array of tour objects and creates them in the database.
+    Existing tours (matched by title) are skipped or updated based on the 'update_existing' flag.
+    
+    Request body:
+        {
+            "tours": [
+                {
+                    "title": "Tour Name",
+                    "description": "Tour description",
+                    "price": 45000.0,
+                    "duration": "3 days",
+                    "location": "Location",
+                    "image_url": "https://...",  // optional
+                    "available_slots": 20  // optional, defaults to 10
+                },
+                ...
+            ],
+            "update_existing": false  // optional, if true updates existing tours
+        }
+    
+    Returns:
+        JSON object with created, updated, and skipped tour counts
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No data provided',
+                'error_code': 'NO_DATA'
+            }), 400
+        
+        tours_data = data.get('tours', [])
+        update_existing = data.get('update_existing', False)
+        
+        if not tours_data:
+            return jsonify({
+                'success': False,
+                'error': 'No tours provided in request',
+                'error_code': 'NO_TOURS'
+            }), 400
+        
+        if not isinstance(tours_data, list):
+            return jsonify({
+                'success': False,
+                'error': 'Tours must be an array',
+                'error_code': 'INVALID_FORMAT'
+            }), 400
+        
+        # Required fields for validation
+        required_fields = ['title', 'description', 'price', 'duration', 'location']
+        
+        created_tours = []
+        updated_tours = []
+        skipped_tours = []
+        validation_errors = []
+        
+        for i, tour_data in enumerate(tours_data):
+            # Validate required fields
+            missing_fields = [f for f in required_fields if f not in tour_data or not tour_data[f]]
+            if missing_fields:
+                validation_errors.append({
+                    'index': i,
+                    'title': tour_data.get('title', f'Tour at index {i}'),
+                    'error': f'Missing required fields: {", ".join(missing_fields)}'
+                })
+                continue
+            
+            # Validate price is a positive number
+            try:
+                price = float(tour_data['price'])
+                if price <= 0:
+                    validation_errors.append({
+                        'index': i,
+                        'title': tour_data.get('title'),
+                        'error': 'Price must be a positive number'
+                    })
+                    continue
+            except (ValueError, TypeError):
+                validation_errors.append({
+                    'index': i,
+                    'title': tour_data.get('title'),
+                    'error': 'Invalid price format'
+                })
+                continue
+            
+            # Check if tour with same title exists
+            existing = Tour.query.filter(Tour.title == tour_data['title']).first()
+            
+            if existing:
+                if update_existing:
+                    # Update existing tour
+                    existing.description = tour_data['description']
+                    existing.price = price
+                    existing.duration = tour_data['duration']
+                    existing.location = tour_data['location']
+                    existing.image_url = tour_data.get('image_url', existing.image_url)
+                    existing.available_slots = tour_data.get('available_slots', existing.available_slots)
+                    updated_tours.append(existing.to_dict())
+                else:
+                    skipped_tours.append({
+                        'title': tour_data['title'],
+                        'reason': 'Already exists'
+                    })
+            else:
+                # Create new tour
+                new_tour = Tour(
+                    title=tour_data['title'],
+                    description=tour_data['description'],
+                    price=price,
+                    duration=tour_data['duration'],
+                    location=tour_data['location'],
+                    image_url=tour_data.get('image_url', ''),
+                    available_slots=tour_data.get('available_slots', 10)
+                )
+                db.session.add(new_tour)
+                db.session.flush()
+                created_tours.append(new_tour.to_dict())
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Created {len(created_tours)}, updated {len(updated_tours)}, skipped {len(skipped_tours)} tours',
+            'created_count': len(created_tours),
+            'updated_count': len(updated_tours),
+            'skipped_count': len(skipped_tours),
+            'error_count': len(validation_errors),
+            'created_tours': created_tours,
+            'updated_tours': updated_tours,
+            'skipped_tours': skipped_tours,
+            'validation_errors': validation_errors
+        }), 201 if created_tours or updated_tours else 200
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({
