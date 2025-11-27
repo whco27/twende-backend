@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from .auth import auth_bp
 from .bookings import bookings_bp
 from .payments import payments_bp
+from .trip_schedules import trip_schedules_bp
 
 tours_bp = Blueprint('tours', __name__, url_prefix='/api/tours')
 
