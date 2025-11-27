@@ -183,3 +183,52 @@ def test_seed_then_search_masai_mara(client):
     assert data['success'] is True
     assert len(data['tours']) > 0
     assert 'Masai Mara' in data['tours'][0]['title']
+
+
+def test_get_tour_by_title(client, sample_tour):
+    """Test getting a tour by exact title"""
+    response = client.get('/api/tours/by-title/Test%20Safari')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['tour']['title'] == 'Test Safari'
+
+
+def test_get_tour_by_title_not_found(client):
+    """Test getting a tour by title that doesn't exist"""
+    response = client.get('/api/tours/by-title/NonExistent%20Tour')
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'error_code' in data
+    assert data['error_code'] == 'TOUR_NOT_FOUND'
+    assert 'hint' in data
+
+
+def test_get_tour_by_title_after_seed(client):
+    """Test that after seeding, the Masai Mara 3-Day Safari tour can be found by exact title"""
+    # Seed the database
+    client.post('/api/tours/seed')
+
+    # Get tour by exact title
+    response = client.get('/api/tours/by-title/Masai%20Mara%203-Day%20Safari')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['tour']['title'] == 'Masai Mara 3-Day Safari'
+
+
+def test_create_duplicate_tour(client, sample_tour):
+    """Test that creating a tour with duplicate title fails with helpful error"""
+    tour_data = {
+        'title': 'Test Safari',  # Same title as sample_tour
+        'description': 'A duplicate safari',
+        'price': 3000.0,
+        'duration': '7 days',
+        'location': 'Duplicate Location'
+    }
+    response = client.post('/api/tours/', json=tour_data)
+    assert response.status_code == 409
+    data = response.get_json()
+    assert 'error_code' in data
+    assert data['error_code'] == 'DUPLICATE_TITLE'

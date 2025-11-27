@@ -7,7 +7,7 @@ class Tour(db.Model):
     __tablename__ = 'tours'
     
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(200), nullable=False)
+    title = db.Column(db.String(200), nullable=False, unique=True, index=True)
     description = db.Column(db.Text, nullable=False)
     price = db.Column(db.Float, nullable=False)
     duration = db.Column(db.String(100), nullable=False)
