@@ -124,6 +124,29 @@ def create_tour():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
+        # Validate that string fields are not empty
+        string_fields = ['title', 'description', 'duration', 'location']
+        for field in string_fields:
+            if not data[field] or not str(data[field]).strip():
+                return jsonify({'error': f'{field} cannot be empty'}), 400
+        
+        # Validate price is a positive number
+        try:
+            price = float(data['price'])
+            if price <= 0:
+                return jsonify({'error': 'Price must be a positive number'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid price format. Price must be a number'}), 400
+        
+        # Validate available_slots if provided
+        available_slots = data.get('available_slots', 10)
+        try:
+            available_slots = int(available_slots)
+            if available_slots < 0:
+                return jsonify({'error': 'available_slots cannot be negative'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid available_slots format. Must be a non-negative integer'}), 400
+        
         # Check if tour with same title already exists (provides better error response)
         # Note: IntegrityError catch below handles race condition at database level
         existing_tour = Tour.query.filter(Tour.title == data['title']).first()
@@ -135,13 +158,13 @@ def create_tour():
             }), 409
         
         new_tour = Tour(
-            title=data['title'],
-            description=data['description'],
-            price=data['price'],
-            duration=data['duration'],
-            location=data['location'],
+            title=data['title'].strip(),
+            description=data['description'].strip(),
+            price=price,
+            duration=data['duration'].strip(),
+            location=data['location'].strip(),
             image_url=data.get('image_url', ''),
-            available_slots=data.get('available_slots', 10)
+            available_slots=available_slots
         )
         
         db.session.add(new_tour)
@@ -168,21 +191,45 @@ def update_tour(tour_id):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
+        # Validate string fields if provided
+        string_fields = ['title', 'description', 'duration', 'location']
+        for field in string_fields:
+            if field in data and (not data[field] or not str(data[field]).strip()):
+                return jsonify({'error': f'{field} cannot be empty'}), 400
+        
+        # Validate price if provided
+        if 'price' in data:
+            try:
+                price = float(data['price'])
+                if price <= 0:
+                    return jsonify({'error': 'Price must be a positive number'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid price format. Price must be a number'}), 400
+        
+        # Validate available_slots if provided
+        if 'available_slots' in data:
+            try:
+                available_slots = int(data['available_slots'])
+                if available_slots < 0:
+                    return jsonify({'error': 'available_slots cannot be negative'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid available_slots format. Must be a non-negative integer'}), 400
+        
         # Update fields if provided
         if 'title' in data:
-            tour.title = data['title']
+            tour.title = data['title'].strip()
         if 'description' in data:
-            tour.description = data['description']
+            tour.description = data['description'].strip()
         if 'price' in data:
-            tour.price = data['price']
+            tour.price = float(data['price'])
         if 'duration' in data:
-            tour.duration = data['duration']
+            tour.duration = data['duration'].strip()
         if 'location' in data:
-            tour.location = data['location']
+            tour.location = data['location'].strip()
         if 'image_url' in data:
             tour.image_url = data['image_url']
         if 'available_slots' in data:
-            tour.available_slots = data['available_slots']
+            tour.available_slots = int(data['available_slots'])
         
         db.session.commit()
         

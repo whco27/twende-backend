@@ -301,13 +301,41 @@ def update_user(user_id):
                 'error': 'No data provided'
             }), 400
 
+        # Validate name fields if provided (cannot be empty)
+        name_fields = ['first_name', 'last_name']
+        for field in name_fields:
+            if field in data:
+                value = sanitize_string(data[field])
+                if not value:
+                    logger.warning(f"Update user failed: {field} cannot be empty")
+                    return jsonify({
+                        'success': False,
+                        'error': f'{field} cannot be empty'
+                    }), 400
+                if len(value) > MAX_NAME_LENGTH:
+                    logger.warning(f"Update user failed: {field} too long ({len(value)} characters)")
+                    return jsonify({
+                        'success': False,
+                        'error': f'{field} must be {MAX_NAME_LENGTH} characters or less'
+                    }), 400
+
+        # Validate phone number length if provided
+        if 'phone_number' in data and data['phone_number']:
+            phone_number = sanitize_string(data['phone_number'])
+            if phone_number and len(phone_number) > MAX_PHONE_LENGTH:
+                logger.warning(f"Update user failed: Phone number too long ({len(phone_number)} characters)")
+                return jsonify({
+                    'success': False,
+                    'error': f'Phone number must be {MAX_PHONE_LENGTH} characters or less'
+                }), 400
+
         # Update allowed fields
         if 'first_name' in data:
-            user.first_name = data['first_name']
+            user.first_name = sanitize_string(data['first_name'])
         if 'last_name' in data:
-            user.last_name = data['last_name']
+            user.last_name = sanitize_string(data['last_name'])
         if 'phone_number' in data:
-            user.phone_number = data['phone_number']
+            user.phone_number = sanitize_string(data['phone_number'])
 
         db.session.commit()
         logger.info(f"User updated successfully: id={user_id}")

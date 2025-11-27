@@ -127,6 +127,15 @@ def create_trip_schedule():
                     'error': f'Missing required field: {field}'
                 }), 400
 
+        # Validate that string fields are not empty
+        string_fields = ['title', 'location']
+        for field in string_fields:
+            if not data[field] or not str(data[field]).strip():
+                return jsonify({
+                    'success': False,
+                    'error': f'{field} cannot be empty'
+                }), 400
+
         # Verify user exists
         user = db.session.get(User, data['user_id'])
         if not user:
@@ -165,9 +174,9 @@ def create_trip_schedule():
         new_trip_schedule = TripSchedule(
             user_id=data['user_id'],
             booking_id=data.get('booking_id'),
-            title=data['title'],
+            title=data['title'].strip(),
             description=data.get('description'),
-            location=data['location'],
+            location=data['location'].strip(),
             departure_date=departure_date,
             return_date=return_date,
             status=data.get('status', 'scheduled'),
@@ -212,13 +221,22 @@ def update_trip_schedule(schedule_id):
                 'error': 'No data provided'
             }), 400
 
+        # Validate string fields if provided
+        string_fields = ['title', 'location']
+        for field in string_fields:
+            if field in data and (not data[field] or not str(data[field]).strip()):
+                return jsonify({
+                    'success': False,
+                    'error': f'{field} cannot be empty'
+                }), 400
+
         # Update fields if provided
         if 'title' in data:
-            trip_schedule.title = data['title']
+            trip_schedule.title = data['title'].strip()
         if 'description' in data:
             trip_schedule.description = data['description']
         if 'location' in data:
-            trip_schedule.location = data['location']
+            trip_schedule.location = data['location'].strip()
         if 'departure_date' in data:
             departure_date = parse_datetime(data['departure_date'])
             if not departure_date:
