@@ -821,7 +821,7 @@ def get_upcoming_reminders():
     Query Parameters:
         days_ahead: Number of days to look ahead for reminders (default: 7)
         user_id: Optional filter by user ID
-        status: Optional filter by reminder status (default: pending)
+        status: Filter by reminder status (default: 'pending', use empty string to get all)
         page: Page number for pagination (min 1)
         per_page: Results per page for pagination (min 1, max 100)
     
@@ -861,13 +861,13 @@ def get_upcoming_reminders():
             Reminder.remind_at <= end_date
         )
 
-        # Filter by status if provided
+        # Filter by status if provided (empty string gets all statuses)
         if status:
             query = query.filter(Reminder.status == status)
 
-        # Filter by user_id if provided (join through trip_schedule)
+        # Filter by user_id if provided using has() for cleaner relationship filter
         if user_id:
-            query = query.join(TripSchedule).filter(TripSchedule.user_id == user_id)
+            query = query.filter(Reminder.trip_schedule.has(user_id=user_id))
 
         # Order by remind_at ascending (soonest first)
         pagination = query.order_by(Reminder.remind_at.asc()).paginate(
