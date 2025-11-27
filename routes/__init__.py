@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from models.tour import db, Tour
 from werkzeug.exceptions import NotFound
+from sqlalchemy.exc import IntegrityError
 
 # Import additional blueprints
 from .auth import auth_bp
@@ -69,6 +70,43 @@ def get_tour(tour_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@tours_bp.route('/by-title/<path:title>', methods=['GET'])
+def get_tour_by_title(title):
+    """Get a specific tour by exact title.
+    
+    Args:
+        title: The exact title of the tour to find
+    
+    Returns:
+        JSON object with tour details if found, error otherwise
+    """
+    try:
+        tour = Tour.query.filter(Tour.title == title).first()
+        if tour:
+            return jsonify({
+                'success': True,
+                'tour': tour.to_dict()
+            }), 200
+        
+        # Tour not found - provide helpful guidance
+        available_tours = Tour.query.with_entities(Tour.title).all()
+        available_titles = [t.title for t in available_tours]
+        
+        return jsonify({
+            'success': False,
+            'error': f'Tour "{title}" not found in backend database',
+            'error_code': 'TOUR_NOT_FOUND',
+            'hint': 'Use POST /api/tours/seed to create default tours, or POST /api/tours/ to add a new tour.',
+            'available_tours': available_titles
+        }), 404
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @tours_bp.route('/', methods=['POST'])
 def create_tour():
     """Create a new tour"""
@@ -84,6 +122,15 @@ def create_tour():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
+        # Check if tour with same title already exists
+        existing_tour = Tour.query.filter(Tour.title == data['title']).first()
+        if existing_tour:
+            return jsonify({
+                'error': f'Tour with title "{data["title"]}" already exists',
+                'error_code': 'DUPLICATE_TITLE',
+                'existing_tour': existing_tour.to_dict()
+            }), 409
+        
         new_tour = Tour(
             title=data['title'],
             description=data['description'],
@@ -98,6 +145,12 @@ def create_tour():
         db.session.commit()
         
         return jsonify(new_tour.to_dict()), 201
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            'error': 'A tour with this title already exists',
+            'error_code': 'DUPLICATE_TITLE'
+        }), 409
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
