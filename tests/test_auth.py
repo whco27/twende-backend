@@ -17,6 +17,86 @@ def test_register_user(client):
     assert data['user']['email'] == user_data['email']
 
 
+def test_register_user_without_phone(client):
+    """Test user registration without optional phone number"""
+    user_data = {
+        'email': 'nophone@example.com',
+        'password': 'securepass123',
+        'first_name': 'Jane',
+        'last_name': 'Smith'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['user']['email'] == user_data['email']
+    assert data['user']['phone_number'] is None
+
+
+def test_register_missing_email(client):
+    """Test registration with missing email field"""
+    user_data = {
+        'password': 'securepass123',
+        'first_name': 'Jane',
+        'last_name': 'Smith'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'email' in data['error'].lower()
+
+
+def test_register_missing_password(client):
+    """Test registration with missing password field"""
+    user_data = {
+        'email': 'nopass@example.com',
+        'first_name': 'Jane',
+        'last_name': 'Smith'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'password' in data['error'].lower()
+
+
+def test_register_missing_first_name(client):
+    """Test registration with missing first name field"""
+    user_data = {
+        'email': 'nofirst@example.com',
+        'password': 'securepass123',
+        'last_name': 'Smith'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'first_name' in data['error'].lower()
+
+
+def test_register_missing_last_name(client):
+    """Test registration with missing last name field"""
+    user_data = {
+        'email': 'nolast@example.com',
+        'password': 'securepass123',
+        'first_name': 'Jane'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'last_name' in data['error'].lower()
+
+
+def test_register_no_data(client):
+    """Test registration with no JSON data"""
+    response = client.post('/api/auth/register', data='', content_type='application/json')
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+
+
 def test_register_duplicate_email(client):
     """Test registration with existing email"""
     user_data = {
@@ -31,6 +111,25 @@ def test_register_duplicate_email(client):
     response = client.post('/api/auth/register', json=user_data)
     assert response.status_code == 409
     assert response.get_json()['success'] is False
+
+
+def test_register_duplicate_email_case_insensitive(client):
+    """Test registration with existing email but different case"""
+    user_data = {
+        'email': 'CaseTest@Example.com',
+        'password': 'password123',
+        'first_name': 'First',
+        'last_name': 'User'
+    }
+    # First registration
+    response1 = client.post('/api/auth/register', json=user_data)
+    assert response1.status_code == 201
+
+    # Second registration with same email in different case
+    user_data['email'] = 'casetest@example.com'
+    response2 = client.post('/api/auth/register', json=user_data)
+    assert response2.status_code == 409
+    assert response2.get_json()['success'] is False
 
 
 def test_register_invalid_email(client):
@@ -147,6 +246,17 @@ def test_login_success(client, sample_user):
     assert 'user' in data
 
 
+def test_login_case_insensitive_email(client, sample_user):
+    """Test login with email in different case"""
+    response = client.post('/api/auth/login', json={
+        'email': 'TEST@EXAMPLE.COM',
+        'password': 'password123'
+    })
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+
+
 def test_login_wrong_password(client, sample_user):
     """Test login with wrong password"""
     response = client.post('/api/auth/login', json={
@@ -166,6 +276,20 @@ def test_login_nonexistent_user(client):
     assert response.status_code == 401
 
 
+def test_login_no_data(client):
+    """Test login with no JSON data"""
+    response = client.post('/api/auth/login', data='', content_type='application/json')
+    assert response.status_code == 400
+
+
+def test_login_missing_password(client, sample_user):
+    """Test login with missing password"""
+    response = client.post('/api/auth/login', json={
+        'email': 'test@example.com'
+    })
+    assert response.status_code == 400
+
+
 def test_get_user(client, sample_user):
     """Test getting user info"""
     response = client.get(f'/api/auth/user/{sample_user}')
@@ -173,6 +297,14 @@ def test_get_user(client, sample_user):
     data = response.get_json()
     assert data['success'] is True
     assert data['user']['email'] == 'test@example.com'
+
+
+def test_get_user_not_found(client):
+    """Test getting non-existent user"""
+    response = client.get('/api/auth/user/99999')
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['success'] is False
 
 
 def test_update_user(client, sample_user):
@@ -184,3 +316,21 @@ def test_update_user(client, sample_user):
     assert response.status_code == 200
     data = response.get_json()
     assert data['user']['first_name'] == 'Johnny'
+
+
+def test_update_user_not_found(client):
+    """Test updating non-existent user"""
+    response = client.put('/api/auth/user/99999', json={
+        'first_name': 'Johnny'
+    })
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['success'] is False
+
+
+def test_update_user_no_data(client, sample_user):
+    """Test updating user with no data"""
+    response = client.put(f'/api/auth/user/{sample_user}', data='', content_type='application/json')
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False

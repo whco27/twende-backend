@@ -2,6 +2,9 @@
 from flask import Blueprint, jsonify, request
 from models import db, User
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -33,9 +36,11 @@ def validate_password(password):
 def register():
     """Register a new user"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        logger.info("Registration request received")
 
         if not data:
+            logger.warning("Registration failed: No data provided")
             return jsonify({
                 'success': False,
                 'error': 'No data provided'
@@ -50,21 +55,25 @@ def register():
 
         # Validate required fields
         if not email:
+            logger.warning("Registration failed: Missing email")
             return jsonify({
                 'success': False,
                 'error': 'Missing required field: email'
             }), 400
         if not password:
+            logger.warning("Registration failed: Missing password")
             return jsonify({
                 'success': False,
                 'error': 'Missing required field: password'
             }), 400
         if not first_name:
+            logger.warning("Registration failed: Missing first_name")
             return jsonify({
                 'success': False,
                 'error': 'Missing required field: first_name'
             }), 400
         if not last_name:
+            logger.warning("Registration failed: Missing last_name")
             return jsonify({
                 'success': False,
                 'error': 'Missing required field: last_name'
@@ -72,6 +81,7 @@ def register():
 
         # Validate email format
         if not validate_email(email):
+            logger.warning(f"Registration failed: Invalid email format")
             return jsonify({
                 'success': False,
                 'error': 'Invalid email format'
@@ -79,6 +89,7 @@ def register():
 
         # Validate email length
         if len(email) > MAX_EMAIL_LENGTH:
+            logger.warning(f"Registration failed: Email too long ({len(email)} characters)")
             return jsonify({
                 'success': False,
                 'error': f'Email must be {MAX_EMAIL_LENGTH} characters or less'
@@ -86,11 +97,13 @@ def register():
 
         # Validate name lengths
         if len(first_name) > MAX_NAME_LENGTH:
+            logger.warning(f"Registration failed: First name too long ({len(first_name)} characters)")
             return jsonify({
                 'success': False,
                 'error': f'First name must be {MAX_NAME_LENGTH} characters or less'
             }), 400
         if len(last_name) > MAX_NAME_LENGTH:
+            logger.warning(f"Registration failed: Last name too long ({len(last_name)} characters)")
             return jsonify({
                 'success': False,
                 'error': f'Last name must be {MAX_NAME_LENGTH} characters or less'
@@ -98,6 +111,7 @@ def register():
 
         # Validate phone number length if provided
         if phone_number and len(phone_number) > MAX_PHONE_LENGTH:
+            logger.warning(f"Registration failed: Phone number too long ({len(phone_number)} characters)")
             return jsonify({
                 'success': False,
                 'error': f'Phone number must be {MAX_PHONE_LENGTH} characters or less'
@@ -105,20 +119,24 @@ def register():
 
         # Validate password strength
         if not validate_password(password):
+            logger.warning("Registration failed: Password too weak")
             return jsonify({
                 'success': False,
                 'error': 'Password must be at least 8 characters long'
             }), 400
 
         # Check if user already exists
+        logger.debug(f"Checking for existing user with email")
         existing_user = User.query.filter_by(email=email.lower()).first()
         if existing_user:
+            logger.warning(f"Registration failed: Email already exists")
             return jsonify({
                 'success': False,
                 'error': 'User with this email already exists'
             }), 409
 
         # Create new user
+        logger.debug("Creating new user")
         new_user = User(
             email=email.lower(),
             first_name=first_name,
@@ -129,6 +147,7 @@ def register():
 
         db.session.add(new_user)
         db.session.commit()
+        logger.info(f"User registered successfully: id={new_user.id}")
 
         return jsonify({
             'success': True,
@@ -138,9 +157,10 @@ def register():
 
     except Exception as e:
         db.session.rollback()
+        logger.error(f"Registration failed with exception: {type(e).__name__}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Registration failed. Please try again later.'
         }), 500
 
 
@@ -148,9 +168,11 @@ def register():
 def login():
     """Login user and return user info"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        logger.info("Login request received")
 
         if not data:
+            logger.warning("Login failed: No data provided")
             return jsonify({
                 'success': False,
                 'error': 'No data provided'
@@ -158,6 +180,7 @@ def login():
 
         # Validate required fields
         if 'email' not in data or 'password' not in data:
+            logger.warning("Login failed: Missing email or password")
             return jsonify({
                 'success': False,
                 'error': 'Email and password are required'
@@ -167,17 +190,20 @@ def login():
         user = User.query.filter_by(email=data['email'].lower()).first()
 
         if not user or not user.check_password(data['password']):
+            logger.warning("Login failed: Invalid credentials")
             return jsonify({
                 'success': False,
                 'error': 'Invalid email or password'
             }), 401
 
         if not user.is_active:
+            logger.warning(f"Login failed: Account deactivated for user id={user.id}")
             return jsonify({
                 'success': False,
                 'error': 'Account is deactivated'
             }), 403
 
+        logger.info(f"User logged in successfully: id={user.id}")
         return jsonify({
             'success': True,
             'message': 'Login successful',
@@ -185,9 +211,10 @@ def login():
         }), 200
 
     except Exception as e:
+        logger.error(f"Login failed with exception: {type(e).__name__}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Login failed. Please try again later.'
         }), 500
 
 
@@ -195,8 +222,10 @@ def login():
 def get_user(user_id):
     """Get user by ID"""
     try:
+        logger.debug(f"Get user request: id={user_id}")
         user = db.session.get(User, user_id)
         if not user:
+            logger.warning(f"Get user failed: User not found id={user_id}")
             return jsonify({
                 'success': False,
                 'error': 'User not found'
@@ -208,9 +237,10 @@ def get_user(user_id):
         }), 200
 
     except Exception as e:
+        logger.error(f"Get user failed with exception: {type(e).__name__}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Failed to retrieve user. Please try again later.'
         }), 500
 
 
@@ -218,15 +248,18 @@ def get_user(user_id):
 def update_user(user_id):
     """Update user information"""
     try:
+        logger.debug(f"Update user request: id={user_id}")
         user = db.session.get(User, user_id)
         if not user:
+            logger.warning(f"Update user failed: User not found id={user_id}")
             return jsonify({
                 'success': False,
                 'error': 'User not found'
             }), 404
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
+            logger.warning("Update user failed: No data provided")
             return jsonify({
                 'success': False,
                 'error': 'No data provided'
@@ -241,6 +274,7 @@ def update_user(user_id):
             user.phone_number = data['phone_number']
 
         db.session.commit()
+        logger.info(f"User updated successfully: id={user_id}")
 
         return jsonify({
             'success': True,
@@ -250,7 +284,8 @@ def update_user(user_id):
 
     except Exception as e:
         db.session.rollback()
+        logger.error(f"Update user failed with exception: {type(e).__name__}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': 'Failed to update user. Please try again later.'
         }), 500
