@@ -11,6 +11,7 @@ A Flask-based REST API backend for the Twende Tours application, providing tour 
 - **Email Notifications**: Registration confirmation emails and admin notifications for new users
 - **Health Monitoring**: Health check endpoint with database status
 - **CORS Support**: Configurable CORS for frontend integration
+- **Integrated Frontend Hosting**: Serve frontend static files from the same server
 
 ## API Endpoints
 
@@ -135,6 +136,7 @@ python app.py
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `SECRET_KEY` | Flask secret key | Yes |
 | `FLASK_ENV` | Environment (development/production) | No |
+| `ENABLE_CORS` | Enable CORS for external frontend (default: true) | No |
 | `FRONTEND_URL` | Allowed frontend origins (comma-separated) | No |
 | `MAIL_SERVER` | SMTP server hostname | For email notifications |
 | `MAIL_PORT` | SMTP port (default: 587) | For email notifications |
@@ -155,7 +157,62 @@ python app.py
 
 ### Frontend Integration
 
-The API is designed to work with the Twende Tours frontend. Configure CORS origins in the `FRONTEND_URL` environment variable.
+The backend supports two modes for frontend integration:
+
+#### Option 1: Integrated Deployment (Recommended)
+
+Host the frontend and backend on the same server to eliminate CORS issues and simplify deployment.
+
+**Steps to integrate frontend:**
+
+1. **Build the frontend** (in your frontend repository):
+   ```bash
+   cd twende-frontend
+   npm install
+   npm run build
+   ```
+
+2. **Copy build artifacts** to the backend's `public/` directory:
+   ```bash
+   cp -r build/* ../twende-backend/public/
+   # Or for Vite-based projects:
+   cp -r dist/* ../twende-backend/public/
+   ```
+
+3. **Configure environment** to disable CORS:
+   ```bash
+   ENABLE_CORS=false
+   ```
+
+4. **Deploy** the backend with the frontend assets included.
+
+**How it works:**
+- Static files (JS, CSS, images) are served from the `public/` directory
+- The root URL (`/`) serves `index.html` when the frontend is deployed
+- All non-API routes (e.g., `/tours`, `/about`) serve `index.html` for client-side routing (SPA)
+- API routes (`/api/*`) continue to work normally and return JSON
+
+**Directory structure after integration:**
+```
+twende-backend/
+├── app.py
+├── public/
+│   ├── index.html       # Frontend entry point
+│   ├── assets/          # JS, CSS bundles
+│   └── ...              # Other static files
+├── routes/
+└── ...
+```
+
+#### Option 2: Separate Deployment (External Frontend)
+
+Host the frontend on a separate server (e.g., Netlify, Vercel, or another hosting service).
+
+**Configuration:**
+```bash
+ENABLE_CORS=true
+FRONTEND_URL=https://your-frontend-domain.com
+```
 
 **Example frontend fetch:**
 ```javascript
@@ -231,12 +288,36 @@ python -m pytest tests/ --cov=. --cov-report=html
 
 ## Deployment
 
+### Integrated Deployment (Frontend + Backend)
+
+For integrated deployment with the frontend served from the same server:
+
+1. **Build frontend** in your frontend repository:
+   ```bash
+   npm run build
+   ```
+
+2. **Copy frontend build** to `public/` directory:
+   ```bash
+   cp -r dist/* public/
+   # Or for Create React App:
+   cp -r build/* public/
+   ```
+
+3. **Set environment variables**:
+   ```bash
+   ENABLE_CORS=false  # Disable CORS since frontend is on same origin
+   ```
+
+4. **Deploy** using your preferred platform (Railway, Render, Docker).
+
 ### Railway
 
 1. Create a new project on Railway
 2. Add PostgreSQL database service
 3. Connect your GitHub repository
-4. Set environment variables in Railway dashboard
+4. Set environment variables in Railway dashboard:
+   - `ENABLE_CORS=false` for integrated deployment
 5. Railway will auto-deploy using the `Procfile`
 
 ### Docker
@@ -249,6 +330,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 CMD gunicorn app:app --bind 0.0.0.0:$PORT
 ```
+
+**For integrated frontend deployment**, ensure the `public/` directory contains the built frontend files before building the Docker image.
 
 ### Render
 

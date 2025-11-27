@@ -56,3 +56,13 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Frontend (Node.js) - when building frontend locally
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Note: public/ directory contains frontend build artifacts
+# Keep .gitkeep but ignore the actual build files when building locally
+# The build files should be committed when deploying integrated frontend
