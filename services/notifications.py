@@ -1,6 +1,7 @@
 """Email notification service for user registration and admin alerts"""
 import os
 import logging
+from html import escape as html_escape
 from flask_mail import Mail, Message
 from flask import current_app
 
@@ -90,6 +91,11 @@ Best regards,
 The Twende Tours Team
 """
 
+            # Escape user data for HTML to prevent XSS
+            safe_first_name = html_escape(user.first_name)
+            safe_last_name = html_escape(user.last_name)
+            safe_email = html_escape(user.email)
+
             msg.html = f"""
 <!DOCTYPE html>
 <html>
@@ -109,13 +115,13 @@ The Twende Tours Team
             <h1>Welcome to Twende Tours!</h1>
         </div>
         <div class="content">
-            <p>Hello <strong>{user.first_name}</strong>,</p>
+            <p>Hello <strong>{safe_first_name}</strong>,</p>
             <p>Your account has been successfully created!</p>
 
             <div class="details">
                 <h3>Account Details:</h3>
-                <p><strong>Email:</strong> {user.email}</p>
-                <p><strong>Name:</strong> {user.first_name} {user.last_name}</p>
+                <p><strong>Email:</strong> {safe_email}</p>
+                <p><strong>Name:</strong> {safe_first_name} {safe_last_name}</p>
             </div>
 
             <p>You can now:</p>
@@ -208,6 +214,12 @@ Please review the new registration in the admin dashboard.
 This is an automated notification from Twende Tours.
 """
 
+            # Escape user data for HTML to prevent XSS
+            safe_first_name = html_escape(user.first_name)
+            safe_last_name = html_escape(user.last_name)
+            safe_email = html_escape(user.email)
+            safe_phone_info = html_escape(phone_info)
+
             msg.html = f"""
 <!DOCTYPE html>
 <html>
@@ -236,9 +248,9 @@ This is an automated notification from Twende Tours.
                 <h3>User Details:</h3>
                 <table>
                     <tr><td>ID</td><td>{user.id}</td></tr>
-                    <tr><td>Email</td><td>{user.email}</td></tr>
-                    <tr><td>Name</td><td>{user.first_name} {user.last_name}</td></tr>
-                    <tr><td>Phone</td><td>{phone_info}</td></tr>
+                    <tr><td>Email</td><td>{safe_email}</td></tr>
+                    <tr><td>Name</td><td>{safe_first_name} {safe_last_name}</td></tr>
+                    <tr><td>Phone</td><td>{safe_phone_info}</td></tr>
                     <tr><td>Registered</td><td>{created_at_str}</td></tr>
                 </table>
             </div>

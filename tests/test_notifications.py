@@ -42,9 +42,7 @@ def test_get_admin_emails_empty():
     import os
 
     # Clear any existing ADMIN_EMAILS
-    original = os.environ.get('ADMIN_EMAILS')
-    if 'ADMIN_EMAILS' in os.environ:
-        del os.environ['ADMIN_EMAILS']
+    original = os.environ.pop('ADMIN_EMAILS', None)
 
     try:
         emails = notification_service._get_admin_emails()
@@ -59,7 +57,7 @@ def test_get_admin_emails_configured():
     from services.notifications import notification_service
     import os
 
-    original = os.environ.get('ADMIN_EMAILS')
+    original = os.environ.pop('ADMIN_EMAILS', None)
     os.environ['ADMIN_EMAILS'] = 'admin1@test.com, admin2@test.com , admin3@test.com'
 
     try:
@@ -72,7 +70,7 @@ def test_get_admin_emails_configured():
         if original:
             os.environ['ADMIN_EMAILS'] = original
         else:
-            del os.environ['ADMIN_EMAILS']
+            os.environ.pop('ADMIN_EMAILS', None)
 
 
 def test_registration_triggers_notifications(client):
