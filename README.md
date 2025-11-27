@@ -2,6 +2,32 @@
 
 A Flask-based REST API backend for the Twende Tours application, providing tour management, user authentication, booking management, and M-Pesa Daraja payment integration.
 
+## 🚀 Quick Start (Integrated Deployment)
+
+For the fastest setup with frontend served from the same server:
+
+```bash
+# 1. Clone and setup
+git clone https://github.com/whco27/twende-backend.git
+cd twende-backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Configure
+cp .env.example .env
+# Edit .env with your DATABASE_URL and other settings
+# Set ENABLE_CORS=false for integrated deployment
+
+# 3. Deploy frontend (optional - if you have a frontend repo)
+./scripts/deploy_frontend.sh ../twende-frontend
+
+# 4. Run
+python app.py
+# Access at http://localhost:5000
+```
+
+📖 **For detailed integration instructions, see [INTEGRATION.md](INTEGRATION.md)**
+
 ## Features
 
 - **Tour Management**: CRUD operations for tour listings
@@ -11,7 +37,8 @@ A Flask-based REST API backend for the Twende Tours application, providing tour 
 - **Email Notifications**: Registration confirmation emails and admin notifications for new users
 - **Health Monitoring**: Health check endpoint with database status
 - **CORS Support**: Configurable CORS for frontend integration
-- **Integrated Frontend Hosting**: Serve frontend static files from the same server
+- **Integrated Frontend Hosting**: Serve frontend and Daraja static files from the same server
+- **Unified Database**: Single PostgreSQL database for all components
 
 ## API Endpoints
 
@@ -407,6 +434,57 @@ All API responses follow a consistent format:
 }
 ```
 
+## Project Structure
+
+```
+twende-backend/
+├── app.py                    # Main Flask application
+├── config.py                 # Configuration classes
+├── requirements.txt          # Python dependencies
+├── Procfile                  # Deployment configuration
+├── INTEGRATION.md           # Detailed integration guide
+├── .env.example              # Environment variable template
+├── models/                   # Database models
+│   ├── __init__.py
+│   ├── tour.py              # Tour model
+│   ├── user.py              # User model
+│   ├── booking.py           # Booking model
+│   └── payment.py           # Payment model
+├── routes/                   # API route handlers
+│   ├── __init__.py          # Tours routes
+│   ├── auth.py              # Authentication routes
+│   ├── bookings.py          # Booking routes
+│   └── payments.py          # Daraja payment routes
+├── services/                 # Business logic services
+│   ├── __init__.py
+│   └── notifications.py     # Email notification service
+├── public/                   # Frontend static files
+│   ├── .gitkeep
+│   └── daraja/              # Daraja payment pages
+│       ├── README.md
+│       └── payment.html     # Sample M-Pesa payment page
+├── scripts/                  # Utility scripts
+│   └── deploy_frontend.sh   # Frontend deployment script
+└── tests/                    # Test suite
+    ├── conftest.py
+    ├── test_auth.py
+    ├── test_bookings.py
+    ├── test_frontend_serving.py
+    ├── test_notifications.py
+    ├── test_payments.py
+    └── test_tours.py
+```
+
+## Related Repositories
+
+| Repository | Description |
+|------------|-------------|
+| `twende-backend` | This repository - REST API backend |
+| `twende-frontend` | React/Vue frontend application |
+| `daraja` | M-Pesa Daraja payment integration pages |
+
+All repositories are designed to work together. See [INTEGRATION.md](INTEGRATION.md) for setup instructions.
+
 ## License
 
 MIT License
@@ -416,5 +494,5 @@ MIT License
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests
+4. Run tests: `python -m pytest tests/ -v`
 5. Submit a pull request
