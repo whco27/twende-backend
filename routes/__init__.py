@@ -2,6 +2,11 @@ from flask import Blueprint, jsonify, request
 from models.tour import db, Tour
 from werkzeug.exceptions import NotFound
 
+# Import additional blueprints
+from .auth import auth_bp
+from .bookings import bookings_bp
+from .payments import payments_bp
+
 tours_bp = Blueprint('tours', __name__, url_prefix='/api/tours')
 
 @tours_bp.route('/', methods=['GET'])
