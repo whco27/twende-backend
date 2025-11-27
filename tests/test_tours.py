@@ -232,3 +232,164 @@ def test_create_duplicate_tour(client, sample_tour):
     data = response.get_json()
     assert 'error_code' in data
     assert data['error_code'] == 'DUPLICATE_TITLE'
+
+
+# Tests for bulk import endpoint
+def test_bulk_import_tours(client):
+    """Test bulk importing tours"""
+    tours_data = {
+        'tours': [
+            {
+                'title': 'Bulk Import Safari 1',
+                'description': 'A wonderful safari experience',
+                'price': 25000.0,
+                'duration': '2 days',
+                'location': 'Serengeti'
+            },
+            {
+                'title': 'Bulk Import Safari 2',
+                'description': 'Another amazing safari',
+                'price': 35000.0,
+                'duration': '3 days',
+                'location': 'Masai Mara'
+            }
+        ]
+    }
+    response = client.post('/api/tours/bulk-import', json=tours_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['created_count'] == 2
+    assert data['skipped_count'] == 0
+    assert len(data['created_tours']) == 2
+
+
+def test_bulk_import_no_data(client):
+    """Test bulk import with empty JSON object"""
+    response = client.post('/api/tours/bulk-import', json={})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    # Empty dict {} evaluates to False in Python (bool({}) == False)
+    # so `if not data:` returns True, triggering NO_DATA error
+    assert data['error_code'] == 'NO_DATA'
+
+
+def test_bulk_import_empty_tours(client):
+    """Test bulk import with empty tours array"""
+    response = client.post('/api/tours/bulk-import', json={'tours': []})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert data['error_code'] == 'NO_TOURS'
+
+
+def test_bulk_import_missing_required_fields(client):
+    """Test bulk import with missing required fields"""
+    tours_data = {
+        'tours': [
+            {
+                'title': 'Incomplete Tour',
+                'price': 25000.0
+                # Missing description, duration, location
+            }
+        ]
+    }
+    response = client.post('/api/tours/bulk-import', json=tours_data)
+    assert response.status_code == 422  # Unprocessable Entity - validation errors only
+    data = response.get_json()
+    assert data['success'] is False
+    assert data['created_count'] == 0
+    assert len(data['validation_errors']) == 1
+    assert 'Missing required fields' in data['validation_errors'][0]['error']
+
+
+def test_bulk_import_invalid_price(client):
+    """Test bulk import with invalid price"""
+    tours_data = {
+        'tours': [
+            {
+                'title': 'Invalid Price Tour',
+                'description': 'A tour with invalid price',
+                'price': -500.0,
+                'duration': '2 days',
+                'location': 'Somewhere'
+            }
+        ]
+    }
+    response = client.post('/api/tours/bulk-import', json=tours_data)
+    assert response.status_code == 422  # Unprocessable Entity - validation errors only
+    data = response.get_json()
+    assert data['created_count'] == 0
+    assert len(data['validation_errors']) == 1
+    assert 'positive number' in data['validation_errors'][0]['error']
+
+
+def test_bulk_import_skip_existing(client, sample_tour):
+    """Test that bulk import skips existing tours by default"""
+    tours_data = {
+        'tours': [
+            {
+                'title': 'Test Safari',  # Same as sample_tour
+                'description': 'Different description',
+                'price': 99999.0,
+                'duration': '10 days',
+                'location': 'Different Location'
+            }
+        ]
+    }
+    response = client.post('/api/tours/bulk-import', json=tours_data)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['created_count'] == 0
+    assert data['skipped_count'] == 1
+
+
+def test_bulk_import_update_existing(client, sample_tour):
+    """Test that bulk import can update existing tours"""
+    tours_data = {
+        'tours': [
+            {
+                'title': 'Test Safari',  # Same as sample_tour
+                'description': 'Updated description',
+                'price': 99999.0,
+                'duration': '10 days',
+                'location': 'Updated Location'
+            }
+        ],
+        'update_existing': True
+    }
+    response = client.post('/api/tours/bulk-import', json=tours_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['updated_count'] == 1
+    assert data['updated_tours'][0]['price'] == 99999.0
+    assert data['updated_tours'][0]['description'] == 'Updated description'
+
+
+def test_bulk_import_mixed_valid_invalid(client):
+    """Test bulk import with mix of valid and invalid tours"""
+    tours_data = {
+        'tours': [
+            {
+                'title': 'Valid Tour',
+                'description': 'A valid tour',
+                'price': 25000.0,
+                'duration': '2 days',
+                'location': 'Valid Location'
+            },
+            {
+                'title': 'Invalid Tour',
+                # Missing required fields
+                'price': 30000.0
+            }
+        ]
+    }
+    response = client.post('/api/tours/bulk-import', json=tours_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['created_count'] == 1
+    assert data['error_count'] == 1
