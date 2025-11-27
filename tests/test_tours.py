@@ -265,12 +265,13 @@ def test_bulk_import_tours(client):
 
 
 def test_bulk_import_no_data(client):
-    """Test bulk import with empty JSON object - treated as no data"""
+    """Test bulk import with empty JSON object"""
     response = client.post('/api/tours/bulk-import', json={})
     assert response.status_code == 400
     data = response.get_json()
     assert data['success'] is False
-    # Empty dict {} is falsy in Python, so we get NO_DATA
+    # Empty dict {} evaluates to False in Python (bool({}) == False)
+    # so `if not data:` returns True, triggering NO_DATA error
     assert data['error_code'] == 'NO_DATA'
 
 
@@ -295,9 +296,9 @@ def test_bulk_import_missing_required_fields(client):
         ]
     }
     response = client.post('/api/tours/bulk-import', json=tours_data)
-    assert response.status_code == 200  # Partial success
+    assert response.status_code == 422  # Unprocessable Entity - validation errors only
     data = response.get_json()
-    assert data['success'] is True
+    assert data['success'] is False
     assert data['created_count'] == 0
     assert len(data['validation_errors']) == 1
     assert 'Missing required fields' in data['validation_errors'][0]['error']
@@ -317,7 +318,7 @@ def test_bulk_import_invalid_price(client):
         ]
     }
     response = client.post('/api/tours/bulk-import', json=tours_data)
-    assert response.status_code == 200
+    assert response.status_code == 422  # Unprocessable Entity - validation errors only
     data = response.get_json()
     assert data['created_count'] == 0
     assert len(data['validation_errors']) == 1

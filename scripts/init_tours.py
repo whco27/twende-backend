@@ -14,9 +14,11 @@ Options:
 
 import os
 import sys
+from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -115,7 +117,7 @@ def main():
                 for title in result['created_tours']:
                     print(f"  - {title}")
         
-        print("\nDatabase initialization complete!")
+            print("\nDatabase initialization complete!")
         
     except Exception as e:
         print(f"Error initializing database: {e}", file=sys.stderr)

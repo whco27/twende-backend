@@ -282,7 +282,17 @@ def seed_tours():
     comprehensive Kenyan safari and travel experiences.
     
     Returns:
-        JSON object with the created or existing tours
+        JSON object containing:
+        - success: boolean indicating operation success
+        - message: summary of operation (e.g., "Created 5 new tours, 3 already existed")
+        - created_tours: array of newly created tour objects
+        - existing_tours: array of tours that already existed
+        - total_tours: total count of tours (created + existing)
+        
+        Status codes:
+        - 201: At least one tour was created
+        - 200: All tours already existed
+        - 500: Server error
     """
     try:
         created_tours = []
@@ -443,8 +453,19 @@ def bulk_import_tours():
         
         db.session.commit()
         
+        # Determine appropriate status code
+        # 201: At least one tour was created or updated
+        # 200: All tours were skipped (already existed)
+        # 422: Only validation errors occurred (no successful operations)
+        if created_tours or updated_tours:
+            status_code = 201
+        elif validation_errors and not skipped_tours:
+            status_code = 422  # Unprocessable Entity - all tours had validation errors
+        else:
+            status_code = 200  # All tours already existed
+        
         return jsonify({
-            'success': True,
+            'success': len(validation_errors) == 0 or len(created_tours) > 0 or len(updated_tours) > 0,
             'message': f'Created {len(created_tours)}, updated {len(updated_tours)}, skipped {len(skipped_tours)} tours',
             'created_count': len(created_tours),
             'updated_count': len(updated_tours),
@@ -454,7 +475,7 @@ def bulk_import_tours():
             'updated_tours': updated_tours,
             'skipped_tours': skipped_tours,
             'validation_errors': validation_errors
-        }), 201 if created_tours or updated_tours else 200
+        }), status_code
         
     except Exception as e:
         db.session.rollback()
