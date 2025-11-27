@@ -50,7 +50,7 @@ python app.py
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/tours/` | Get all tours |
+| GET | `/api/tours/` | Get all tours (supports `page`, `per_page`, `location` query params) |
 | GET | `/api/tours/<id>` | Get tour by ID |
 | POST | `/api/tours/` | Create a new tour |
 | PUT | `/api/tours/<id>` | Update a tour |
@@ -65,6 +65,7 @@ python app.py
 | POST | `/api/auth/check-email` | Check email availability |
 | GET | `/api/auth/user/<id>` | Get user by ID |
 | PUT | `/api/auth/user/<id>` | Update user |
+| GET | `/api/auth/users` | List all users (supports `page`, `per_page`, `is_active` query params) |
 
 #### User Registration
 
@@ -141,12 +142,15 @@ Or if email is taken:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/bookings/` | Get all bookings (filter by user_id, status) |
+| GET | `/api/bookings/` | Get all bookings (supports `user_id`, `status`, `page`, `per_page` query params) |
 | GET | `/api/bookings/<id>` | Get booking by ID |
 | POST | `/api/bookings/` | Create a new booking |
 | PUT | `/api/bookings/<id>` | Update booking |
+| DELETE | `/api/bookings/<id>` | Delete a booking (unpaid only) |
 | POST | `/api/bookings/<id>/cancel` | Cancel a booking |
-| GET | `/api/bookings/user/<user_id>` | Get user's bookings |
+| GET | `/api/bookings/user/<user_id>` | Get user's bookings (supports `page`, `per_page` query params) |
+
+**Note:** Tour dates must be in the future. Booking a tour for a past date will return a 400 error.
 
 ### Payments API (`/api/payments`)
 

@@ -264,15 +264,17 @@ fetch(`/api/tours/`);
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/tours/` | GET | List all tours |
+| `/api/tours/` | GET | List all tours (supports `page`, `per_page`, `location` params) |
 | `/api/tours/<id>` | GET | Get tour details |
 | `/api/tours/` | POST | Create tour |
 | `/api/auth/register` | POST | User registration |
 | `/api/auth/login` | POST | User login |
 | `/api/auth/check-email` | POST | Check email availability |
-| `/api/bookings/` | GET/POST | List/create bookings |
-| `/api/bookings/<id>` | GET/PUT | Get/update booking |
+| `/api/auth/users` | GET | List all users (supports `page`, `per_page`, `is_active` params) |
+| `/api/bookings/` | GET/POST | List/create bookings (supports `page`, `per_page`, `user_id`, `status` params) |
+| `/api/bookings/<id>` | GET/PUT/DELETE | Get/update/delete booking |
 | `/api/bookings/<id>/cancel` | POST | Cancel booking |
+| `/api/bookings/user/<user_id>` | GET | Get user's bookings (supports `page`, `per_page` params) |
 | `/api/payments/initiate` | POST | Start M-Pesa payment |
 | `/api/payments/status/<id>` | GET | Check payment status |
 | `/api/payments/callback` | POST | M-Pesa webhook |

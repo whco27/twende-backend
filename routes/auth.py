@@ -15,6 +15,11 @@ MAX_EMAIL_LENGTH = 255
 MAX_NAME_LENGTH = 100
 MAX_PHONE_LENGTH = 20
 
+# Default pagination settings
+DEFAULT_PAGE = 1
+DEFAULT_PER_PAGE = 20
+MAX_PER_PAGE = 100
+
 
 def sanitize_string(value):
     """Sanitize string input by stripping whitespace"""
@@ -381,4 +386,53 @@ def check_email_availability():
         return jsonify({
             'success': False,
             'error': 'Failed to check email availability. Please try again later.'
+        }), 500
+
+
+@auth_bp.route('/users', methods=['GET'])
+def list_users():
+    """List all users with pagination (for admin purposes)"""
+    try:
+        page = request.args.get('page', DEFAULT_PAGE, type=int)
+        per_page = request.args.get('per_page', DEFAULT_PER_PAGE, type=int)
+        is_active = request.args.get('is_active', type=str)
+
+        # Validate pagination parameters
+        if page < 1:
+            page = DEFAULT_PAGE
+        if per_page < 1 or per_page > MAX_PER_PAGE:
+            per_page = DEFAULT_PER_PAGE
+
+        query = User.query
+
+        # Filter by active status if provided
+        if is_active is not None:
+            is_active_bool = is_active.lower() in ('true', '1', 'yes')
+            query = query.filter_by(is_active=is_active_bool)
+
+        pagination = query.order_by(User.created_at.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+
+        return jsonify({
+            'success': True,
+            'users': [user.to_dict() for user in pagination.items],
+            'pagination': {
+                'page': pagination.page,
+                'per_page': pagination.per_page,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(
+            f"Failed to list users: {type(e).__name__}: {str(e)}",
+            exc_info=True
+        )
+        return jsonify({
+            'success': False,
+            'error': 'Failed to retrieve users. Please try again later.'
         }), 500

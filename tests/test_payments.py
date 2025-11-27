@@ -1,4 +1,10 @@
 """Tests for payment routes"""
+from datetime import date, timedelta
+
+
+# Get a future date for testing (30 days from now)
+def get_future_date():
+    return (date.today() + timedelta(days=30)).strftime('%Y-%m-%d')
 
 
 def test_initiate_payment_no_data(client):
@@ -16,7 +22,7 @@ def test_initiate_payment_empty_phone_number(client, sample_user, sample_tour):
     booking_response = client.post('/api/bookings/', json={
         'user_id': sample_user,
         'tour_id': sample_tour,
-        'tour_date': '2024-06-15',
+        'tour_date': get_future_date(),
         'number_of_guests': 1
     })
     booking_id = booking_response.get_json()['booking']['id']
@@ -58,7 +64,7 @@ def test_initiate_payment_invalid_phone_number(client, sample_user, sample_tour)
     booking_response = client.post('/api/bookings/', json={
         'user_id': sample_user,
         'tour_id': sample_tour,
-        'tour_date': '2024-06-15',
+        'tour_date': get_future_date(),
         'number_of_guests': 1
     })
     booking_id = booking_response.get_json()['booking']['id']
@@ -80,7 +86,7 @@ def test_initiate_payment_non_kenyan_phone(client, sample_user, sample_tour):
     booking_response = client.post('/api/bookings/', json={
         'user_id': sample_user,
         'tour_id': sample_tour,
-        'tour_date': '2024-06-15',
+        'tour_date': get_future_date(),
         'number_of_guests': 1
     })
     booking_id = booking_response.get_json()['booking']['id']
@@ -101,7 +107,7 @@ def test_initiate_payment_unconfigured(client, sample_user, sample_tour):
     booking_response = client.post('/api/bookings/', json={
         'user_id': sample_user,
         'tour_id': sample_tour,
-        'tour_date': '2024-06-15',
+        'tour_date': get_future_date(),
         'number_of_guests': 1
     })
     booking_id = booking_response.get_json()['booking']['id']
@@ -124,7 +130,7 @@ def test_get_booking_payments(client, sample_user, sample_tour):
     booking_response = client.post('/api/bookings/', json={
         'user_id': sample_user,
         'tour_id': sample_tour,
-        'tour_date': '2024-06-15',
+        'tour_date': get_future_date(),
         'number_of_guests': 1
     })
     booking_id = booking_response.get_json()['booking']['id']

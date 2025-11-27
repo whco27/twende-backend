@@ -408,3 +408,35 @@ def test_check_email_with_whitespace(client):
     data = response.get_json()
     assert data['success'] is True
     assert data['available'] is True
+
+
+def test_list_users(client, sample_user):
+    """Test listing users with pagination"""
+    response = client.get('/api/auth/users')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'users' in data
+    assert 'pagination' in data
+    assert len(data['users']) > 0
+
+
+def test_list_users_with_pagination(client, sample_user):
+    """Test listing users with explicit pagination parameters"""
+    response = client.get('/api/auth/users?page=1&per_page=10')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['pagination']['page'] == 1
+    assert data['pagination']['per_page'] == 10
+
+
+def test_list_users_filter_by_active(client, sample_user):
+    """Test listing users filtered by active status"""
+    response = client.get('/api/auth/users?is_active=true')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    # All returned users should be active
+    for user in data['users']:
+        assert user['is_active'] is True
