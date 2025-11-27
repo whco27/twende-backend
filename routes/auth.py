@@ -81,7 +81,7 @@ def register():
 
         # Validate email format
         if not validate_email(email):
-            logger.warning(f"Registration failed: Invalid email format")
+            logger.warning("Registration failed: Invalid email format")
             return jsonify({
                 'success': False,
                 'error': 'Invalid email format'
@@ -126,17 +126,18 @@ def register():
             }), 400
 
         # Check if user already exists
-        logger.debug(f"Checking for existing user with email")
+        logger.debug("Checking for existing user with email")
         existing_user = User.query.filter_by(email=email.lower()).first()
         if existing_user:
-            logger.warning(f"Registration failed: Email already exists")
+            logger.warning("Registration failed: Email already exists")
             return jsonify({
                 'success': False,
                 'error': 'User with this email already exists'
             }), 409
 
         # Create new user
-        logger.debug("Creating new user")
+        email_domain = email.split('@')[1] if '@' in email else 'unknown'
+        logger.debug(f"Creating new user for domain: {email_domain}")
         new_user = User(
             email=email.lower(),
             first_name=first_name,
