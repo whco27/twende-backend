@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request
 from models import db, User
 from services.notifications import notification_service
-from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError, DataError
 import re
 import logging
 
@@ -37,6 +37,15 @@ def validate_email(email):
 def validate_password(password):
     """Validate password strength (min 8 characters)"""
     return len(password) >= 8
+
+
+def validate_phone_number(phone):
+    """Validate phone number format (optional, basic validation)"""
+    if not phone:
+        return True  # Phone is optional
+    # Allow digits, spaces, dashes, plus sign, and parentheses
+    pattern = r'^[\d\s\-+()]+$'
+    return re.match(pattern, phone) is not None
 
 
 @auth_bp.route('/register', methods=['POST'])
@@ -136,6 +145,14 @@ def register():
             return jsonify({
                 'success': False,
                 'error': f'Phone number must be {MAX_PHONE_LENGTH} characters or less'
+            }), 400
+
+        # Validate phone number format if provided
+        if phone_number and not validate_phone_number(phone_number):
+            logger.warning("Registration failed: Invalid phone number format")
+            return jsonify({
+                'success': False,
+                'error': 'Invalid phone number format. Only digits, spaces, dashes, plus sign, and parentheses are allowed.'
             }), 400
 
         # Validate password strength
@@ -239,6 +256,16 @@ def register():
             'error_code': 'DATABASE_CONNECTION_ERROR'
         }), 500
 
+    except DataError as e:
+        db.session.rollback()
+        error_msg = str(e)
+        logger.error(f"Registration failed with data error: {error_msg}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Invalid data format. Please check your input values.',
+            'error_code': 'DATA_FORMAT_ERROR'
+        }), 400
+
     except Exception as e:
         db.session.rollback()
         error_type = type(e).__name__
@@ -288,7 +315,9 @@ def login():
             logger.warning(f"Login failed: Account deactivated for user id={user.id}")
             return jsonify({
                 'success': False,
-                'error': 'Account is deactivated'
+                'error': 'Account is deactivated',
+                'error_code': 'ACCOUNT_DEACTIVATED',
+                'message': 'Your account has been deactivated. Please contact support for assistance.'
             }), 403
 
         logger.info(f"User logged in successfully: id={user.id}")
