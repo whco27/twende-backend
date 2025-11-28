@@ -328,11 +328,26 @@
                     // Start polling for payment status
                     pollPaymentStatus();
                 } else {
-                    showStatus(data.error || 'Failed to initiate payment', 'error');
+                    // Handle specific error codes with user-friendly messages
+                    let errorMessage = data.error || 'Failed to initiate payment';
+                    
+                    if (data.error_code === 'SERVICE_NOT_CONFIGURED') {
+                        errorMessage = 'Payment service is temporarily unavailable. Please try again later or contact support.';
+                    } else if (data.error_code === 'INVALID_PHONE') {
+                        errorMessage = data.error + (data.hint ? ` (${data.hint})` : '');
+                    } else if (data.error_code === 'ALREADY_PAID') {
+                        errorMessage = 'This booking has already been paid.';
+                    } else if (data.error_code === 'TIMEOUT') {
+                        errorMessage = 'Payment service is slow. Please try again in a moment.';
+                    } else if (data.error_code === 'CONNECTION_ERROR') {
+                        errorMessage = 'Unable to connect to payment service. Please check your connection and try again.';
+                    }
+                    
+                    showStatus(errorMessage, 'error');
                     payBtn.disabled = false;
                 }
             } catch (error) {
-                showStatus('Failed to initiate payment. Please try again.', 'error');
+                showStatus('Failed to initiate payment. Please check your connection and try again.', 'error');
                 payBtn.disabled = false;
             } finally {
                 payBtn.classList.remove('btn-loading');

@@ -568,6 +568,42 @@ gunicorn app:app
 4. Check phone number format (should be 254XXXXXXXXX for Kenyan mobile)
 5. Verify callback URL is publicly accessible (HTTPS required for production)
 
+### M-Pesa 503 Service Unavailable Error
+
+**Problem**: Payment initiation returns 503 error code.
+
+**Solution**:
+1. **Check if Daraja is configured**: Use the health endpoint to diagnose:
+   ```bash
+   curl https://your-backend.up.railway.app/api/payments/health
+   ```
+   
+2. **Run connection test**: Use the detailed test-connection endpoint:
+   ```bash
+   curl -X POST https://your-backend.up.railway.app/api/payments/test-connection
+   ```
+   This will show:
+   - Configuration status (which credentials are missing)
+   - Network connectivity to Safaricom servers
+   - OAuth authentication test results
+
+3. **Missing configuration**: If the response shows `missing_configuration`, set these environment variables:
+   - `DARAJA_CONSUMER_KEY` - From Safaricom Developer Portal
+   - `DARAJA_CONSUMER_SECRET` - From Safaricom Developer Portal
+   - `DARAJA_PASSKEY` - From Safaricom Developer Portal
+   - `DARAJA_SHORTCODE` - Your business shortcode
+   - `DARAJA_CALLBACK_URL` - Your callback URL (must be HTTPS for production)
+
+4. **Authentication failed**: If credentials are wrong, you'll see `AUTH_FAILED`. Verify:
+   - Consumer key and secret match your Safaricom app
+   - `DARAJA_ENV` is set correctly (`sandbox` or `production`)
+   - Credentials haven't expired
+
+5. **Network issues**: If you see `CONNECTION_ERROR` or `TIMEOUT`:
+   - Check if the server can reach `sandbox.safaricom.co.ke` or `api.safaricom.co.ke`
+   - Verify there are no firewall rules blocking outgoing HTTPS connections
+   - The system automatically retries failed requests up to 3 times
+
 ### M-Pesa "Failed to fetch" Error
 
 **Problem**: Frontend shows "Failed to fetch" when initiating payment.
@@ -619,6 +655,7 @@ gunicorn app:app
 | `/api/payments/booking/<booking_id>` | GET | Get payments for a booking |
 | `/api/payments/config/status` | GET | Check M-Pesa configuration |
 | `/api/payments/health` | GET | Check payment service health |
+| `/api/payments/test-connection` | POST | Detailed connectivity test for debugging 503 errors |
 
 ### Error Codes
 
@@ -644,6 +681,7 @@ For issues:
 2. Run tests: `pytest tests/ -v`
 3. Check health: `curl localhost:5000/health`
 4. Check payment health: `curl localhost:5000/api/payments/health`
+5. Run Daraja connection test: `curl -X POST localhost:5000/api/payments/test-connection`
 
 ## Railway Deployment Guide
 
