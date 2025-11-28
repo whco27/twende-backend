@@ -81,6 +81,21 @@ class DarajaAPI:
             'is_configured': self.is_configured()
         }
 
+    def get_missing_configuration(self):
+        """Return list of missing configuration variable names"""
+        missing = []
+        if not self.consumer_key:
+            missing.append('DARAJA_CONSUMER_KEY')
+        if not self.consumer_secret:
+            missing.append('DARAJA_CONSUMER_SECRET')
+        if not self.passkey:
+            missing.append('DARAJA_PASSKEY')
+        if not self.shortcode:
+            missing.append('DARAJA_SHORTCODE')
+        if not self.callback_url:
+            missing.append('DARAJA_CALLBACK_URL')
+        return missing
+
     def get_access_token(self):
         """Get OAuth access token from Daraja API with enhanced error handling"""
         url = f'{self.base_url}/oauth/v1/generate?grant_type=client_credentials'
@@ -476,12 +491,13 @@ def initiate_payment():
 
         # Check if Daraja credentials are configured
         if not daraja.is_configured():
-            config_status = daraja.get_configuration_status()
-            logger.error(f"Daraja not configured: {config_status}")
+            logger.error(f"Daraja not configured: {daraja.get_configuration_status()}")
             return jsonify({
                 'success': False,
                 'error': 'Payment service is not configured. Please contact support.',
-                'error_code': 'SERVICE_NOT_CONFIGURED'
+                'error_code': 'SERVICE_NOT_CONFIGURED',
+                'missing_configuration': daraja.get_missing_configuration(),
+                'hint': 'Configure Daraja API credentials in environment variables. Get credentials from https://developer.safaricom.co.ke/'
             }), 503
 
         # Validate amount
@@ -826,10 +842,16 @@ def payment_service_health():
             except DarajaAPIError as e:
                 health_status['connectivity'] = 'error'
                 health_status['connectivity_error'] = e.message
+                health_status['error_code'] = e.error_code
                 health_status['success'] = False
         else:
             health_status['connectivity'] = 'not_tested'
             health_status['message'] = 'Service not configured - cannot test connectivity'
+            # Provide hints for missing configuration
+            missing_config = daraja.get_missing_configuration()
+            if missing_config:
+                health_status['missing_configuration'] = missing_config
+                health_status['hint'] = 'Set the missing environment variables in .env or your deployment platform'
 
         return jsonify(health_status), 200 if health_status['success'] else 503
 
@@ -840,4 +862,106 @@ def payment_service_health():
             'service': 'M-Pesa Payment Gateway',
             'error': 'Health check failed',
             'error_code': 'HEALTH_CHECK_ERROR'
+        }), 500
+
+
+@payments_bp.route('/test-connection', methods=['POST'])
+def test_daraja_connection():
+    """Test Daraja API connection with detailed diagnostics.
+    
+    This endpoint performs a comprehensive connectivity test to the Daraja API
+    and returns detailed diagnostic information useful for debugging 503 errors.
+    
+    Returns:
+        JSON object with detailed connectivity test results including:
+        - Configuration status
+        - OAuth token acquisition result
+        - Network connectivity status
+        - Detailed error information if connection fails
+    """
+    try:
+        logger.info("Starting Daraja API connection test")
+        config_status = daraja.get_configuration_status()
+        
+        result = {
+            'success': False,
+            'test_timestamp': datetime.now().isoformat(),
+            'configuration': config_status,
+            'tests': {}
+        }
+        
+        # Test 1: Configuration check
+        result['tests']['configuration'] = {
+            'passed': config_status['is_configured'],
+            'message': ('All required credentials are configured' if config_status['is_configured']
+                        else 'Missing required Daraja credentials')
+        }
+        
+        if not config_status['is_configured']:
+            result['tests']['configuration']['missing_variables'] = daraja.get_missing_configuration()
+            result['tests']['configuration']['hint'] = (
+                'Set these environment variables in your .env file or deployment platform. '
+                'Get credentials from https://developer.safaricom.co.ke/'
+            )
+            return jsonify(result), 503
+        
+        # Test 2: Network connectivity to Daraja API
+        result['tests']['network'] = {'passed': False, 'message': 'Testing...'}
+        try:
+            # Simple HEAD request to check if the API is reachable
+            head_response = daraja.session.head(daraja.base_url, timeout=10)
+            result['tests']['network'] = {
+                'passed': True,
+                'message': f'Daraja API reachable at {daraja.base_url}',
+                'status_code': head_response.status_code
+            }
+        except requests.exceptions.Timeout:
+            result['tests']['network'] = {
+                'passed': False,
+                'message': 'Connection to Daraja API timed out',
+                'error': 'TIMEOUT',
+                'hint': 'Check your network connection and firewall settings'
+            }
+            return jsonify(result), 503
+        except requests.exceptions.ConnectionError as e:
+            result['tests']['network'] = {
+                'passed': False,
+                'message': 'Cannot connect to Daraja API',
+                'error': 'CONNECTION_ERROR',
+                'details': str(e),
+                'hint': 'Verify network connectivity and that the Daraja API URL is correct'
+            }
+            return jsonify(result), 503
+        
+        # Test 3: OAuth Authentication
+        result['tests']['authentication'] = {'passed': False, 'message': 'Testing...'}
+        try:
+            access_token = daraja.get_access_token()
+            result['tests']['authentication'] = {
+                'passed': True,
+                'message': 'Successfully authenticated with Daraja API',
+                'token_received': bool(access_token)
+            }
+            result['success'] = True
+        except DarajaAPIError as e:
+            result['tests']['authentication'] = {
+                'passed': False,
+                'message': e.message,
+                'error_code': e.error_code,
+                'hint': 'Verify your DARAJA_CONSUMER_KEY and DARAJA_CONSUMER_SECRET are correct'
+            }
+            if e.details:
+                result['tests']['authentication']['details'] = str(e.details)
+            return jsonify(result), 503
+        
+        logger.info("Daraja API connection test completed successfully")
+        return jsonify(result), 200
+        
+    except Exception as e:
+        logger.exception(f"Error during Daraja connection test: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Connection test failed unexpectedly',
+            'error_code': 'TEST_ERROR',
+            'details': str(e)
         }), 500

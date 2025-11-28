@@ -267,3 +267,49 @@ def test_list_payments_filter_by_status(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data['success'] is True
+
+
+def test_test_connection_endpoint_unconfigured(client):
+    """Test the connection test endpoint when Daraja is not configured"""
+    response = client.post('/api/payments/test-connection')
+    assert response.status_code == 503
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'tests' in data
+    assert 'configuration' in data['tests']
+    assert data['tests']['configuration']['passed'] is False
+    assert 'missing_variables' in data['tests']['configuration']
+
+
+def test_health_endpoint_shows_missing_config(client):
+    """Test that health endpoint shows which config is missing"""
+    response = client.get('/api/payments/health')
+    assert response.status_code == 200
+    data = response.get_json()
+    # When not configured, should show helpful hints
+    assert 'missing_configuration' in data
+    assert 'hint' in data
+    assert isinstance(data['missing_configuration'], list)
+
+
+def test_initiate_payment_unconfigured_shows_hint(client, sample_user, sample_tour):
+    """Test that payment initiation shows helpful hints when not configured"""
+    # Create a booking first
+    booking_response = client.post('/api/bookings/', json={
+        'user_id': sample_user,
+        'tour_id': sample_tour,
+        'tour_date': get_future_date(),
+        'number_of_guests': 1
+    })
+    booking_id = booking_response.get_json()['booking']['id']
+
+    # Try to initiate payment (should fail because Daraja is not configured)
+    response = client.post('/api/payments/initiate', json={
+        'booking_id': booking_id,
+        'phone_number': '0712345678'
+    })
+    assert response.status_code == 503
+    data = response.get_json()
+    assert 'missing_configuration' in data
+    assert 'hint' in data
+    assert 'Daraja' in data['hint'] or 'safaricom' in data['hint'].lower()
