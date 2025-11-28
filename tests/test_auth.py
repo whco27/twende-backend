@@ -649,3 +649,58 @@ def test_login_deactivated_account(client):
     assert data['success'] is False
     assert data['error_code'] == 'ACCOUNT_DEACTIVATED'
     assert 'message' in data
+
+
+# Tests for database status endpoint
+
+def test_db_status_healthy(client):
+    """Test database status endpoint returns healthy status"""
+    response = client.get('/api/auth/db-status')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['status'] == 'healthy'
+    assert 'database' in data
+    assert data['database']['connection'] == 'ok'
+    assert data['database']['users_table_exists'] is True
+
+
+def test_db_status_shows_user_count(client, sample_user):
+    """Test database status shows correct user count"""
+    response = client.get('/api/auth/db-status')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['database']['user_count'] >= 1
+
+
+# Tests for retry mechanism (edge cases)
+
+def test_register_commit_retry_success(client):
+    """Test that registration succeeds on first attempt normally"""
+    user_data = {
+        'email': 'retry_test@example.com',
+        'password': 'securepass123',
+        'first_name': 'Retry',
+        'last_name': 'Test'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['user']['email'] == user_data['email']
+
+
+def test_register_with_fullname_field(client):
+    """Test user registration with 'fullName' field (camelCase)"""
+    user_data = {
+        'email': 'fullname@example.com',
+        'password': 'securepass123',
+        'name': 'Full Name Test'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['user']['first_name'] == 'Full'
+    assert data['user']['last_name'] == 'Name Test'

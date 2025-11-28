@@ -5,6 +5,7 @@ from services.notifications import notification_service
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError, DataError
 import re
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,10 @@ MAX_PHONE_LENGTH = 20
 DEFAULT_PAGE = 1
 DEFAULT_PER_PAGE = 20
 MAX_PER_PAGE = 100
+
+# Retry configuration for transient database errors
+MAX_DB_RETRIES = 3
+RETRY_DELAY_SECONDS = 0.5
 
 
 def sanitize_string(value):
@@ -46,6 +51,61 @@ def validate_phone_number(phone):
     # Allow digits, spaces, dashes, plus sign, and parentheses
     pattern = r'^[\d\s\-+()]+$'
     return re.match(pattern, phone) is not None
+
+
+def check_database_health():
+    """Check if database connection is healthy.
+    
+    Returns:
+        tuple: (is_healthy, error_message)
+    """
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        db.session.commit()
+        return True, None
+    except Exception as e:
+        db.session.rollback()
+        return False, str(e)
+
+
+def commit_with_retry(max_retries=MAX_DB_RETRIES, delay=RETRY_DELAY_SECONDS):
+    """Attempt to commit database session with retry logic for transient errors.
+    
+    Args:
+        max_retries: Maximum number of retry attempts
+        delay: Delay in seconds between retries
+        
+    Returns:
+        tuple: (success, error_type, error_message)
+    """
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            db.session.commit()
+            return True, None, None
+        except OperationalError as e:
+            last_error = e
+            db.session.rollback()
+            if attempt < max_retries - 1:
+                logger.warning(
+                    f"Database operational error on commit (attempt {attempt + 1}/{max_retries}): "
+                    f"{str(e)}. Retrying in {delay}s..."
+                )
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff
+            else:
+                logger.error(
+                    f"Database operational error persisted after {max_retries} attempts: {str(e)}"
+                )
+                return False, 'OperationalError', str(e)
+        except IntegrityError as e:
+            db.session.rollback()
+            return False, 'IntegrityError', str(e)
+        except Exception as e:
+            db.session.rollback()
+            return False, type(e).__name__, str(e)
+    
+    return False, 'OperationalError', str(last_error) if last_error else 'Unknown error'
 
 
 @auth_bp.route('/register', methods=['POST'])
@@ -191,28 +251,45 @@ def register():
         )
         new_user.set_password(password)
 
-        try:
-            db.session.add(new_user)
-            db.session.commit()
-            logger.info(f"User registered successfully: id={new_user.id}")
-        except IntegrityError:
-            # Handle race condition: another request inserted the same email
-            # between our check and insert
-            db.session.rollback()
-            logger.warning(
-                f"Registration failed due to duplicate email (race condition): "
-                f"{email.lower()}"
-            )
-            return jsonify({
-                'success': False,
-                'error': 'This email address is already registered',
-                'error_code': 'EMAIL_ALREADY_EXISTS',
-                'message': 'Please use a different email address or try logging in.',
-                'suggestions': [
-                    'Use a different email address',
-                    'Try logging in with your existing account'
-                ]
-            }), 409
+        # Add user and commit with retry logic for transient errors
+        db.session.add(new_user)
+        success, error_type, error_msg = commit_with_retry()
+        
+        if not success:
+            if error_type == 'IntegrityError':
+                # Handle race condition: another request inserted the same email
+                # between our check and insert
+                logger.warning(
+                    f"Registration failed due to duplicate email (race condition): "
+                    f"{email.lower()}"
+                )
+                return jsonify({
+                    'success': False,
+                    'error': 'This email address is already registered',
+                    'error_code': 'EMAIL_ALREADY_EXISTS',
+                    'message': 'Please use a different email address or try logging in.',
+                    'suggestions': [
+                        'Use a different email address',
+                        'Try logging in with your existing account'
+                    ]
+                }), 409
+            elif error_type == 'OperationalError':
+                logger.error(f"Registration failed with database connection error: {error_msg}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Database connection error. Please try again later.',
+                    'error_code': 'DATABASE_CONNECTION_ERROR',
+                    'retry': True
+                }), 503
+            else:
+                logger.error(f"Registration failed during commit: {error_type}: {error_msg}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Registration failed. Please try again later.',
+                    'error_code': 'COMMIT_ERROR'
+                }), 500
+        
+        logger.info(f"User registered successfully: id={new_user.id}")
 
         # Send notification emails (non-blocking - failures don't affect registration)
         try:
@@ -544,4 +621,58 @@ def list_users():
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve users. Please try again later.'
+        }), 500
+
+
+@auth_bp.route('/db-status', methods=['GET'])
+def db_status():
+    """Check database connection status for auth module.
+    
+    This endpoint is useful for debugging registration issues
+    and verifying that the database is properly connected.
+    
+    Returns:
+        JSON object with database status and users table info
+    """
+    try:
+        is_healthy, error_msg = check_database_health()
+        
+        if not is_healthy:
+            logger.error(f"Database health check failed: {error_msg}")
+            return jsonify({
+                'success': False,
+                'status': 'unhealthy',
+                'error': error_msg,
+                'message': 'Database connection failed. Registration may not work.'
+            }), 503
+        
+        # Check if users table exists and get count
+        try:
+            user_count = User.query.count()
+            table_exists = True
+        except ProgrammingError:
+            user_count = 0
+            table_exists = False
+        except Exception as table_error:
+            logger.warning(f"Error checking users table: {str(table_error)}")
+            user_count = 0
+            table_exists = False
+        
+        return jsonify({
+            'success': True,
+            'status': 'healthy',
+            'database': {
+                'connection': 'ok',
+                'users_table_exists': table_exists,
+                'user_count': user_count
+            },
+            'message': 'Database is connected and ready for registration.'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Database status check failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'status': 'error',
+            'error': 'Failed to check database status.'
         }), 500
