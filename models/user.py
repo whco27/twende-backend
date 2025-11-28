@@ -20,6 +20,7 @@ class User(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     phone_number = db.Column(db.String(20))
+    role = db.Column(db.String(50), default='user')  # user, admin
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     is_active = db.Column(db.Boolean, default=True)
@@ -46,6 +47,7 @@ class User(db.Model):
             'first_name': self.first_name,
             'last_name': self.last_name,
             'phone_number': self.phone_number,
+            'role': self.role,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'is_active': self.is_active
         }

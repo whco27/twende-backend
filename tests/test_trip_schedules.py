@@ -678,3 +678,120 @@ def test_trip_scheduler_get_reminder_not_found(client):
     assert response.status_code == 404
     data = response.get_json()
     assert data['success'] is False
+
+
+# Additional edge case tests for trip scheduler reminders
+
+
+def test_trip_scheduler_reminders_no_upcoming_trips(client):
+    """Test the /api/trip-scheduler/reminders endpoint when there are no upcoming reminders"""
+    # Without creating any reminders, the endpoint should return empty list
+    response = client.get('/api/trip-scheduler/reminders?days_ahead=7')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'reminders' in data
+    assert len(data['reminders']) == 0
+    assert data['days_ahead'] == 7
+    assert 'pagination' in data
+    assert data['pagination']['total'] == 0
+
+
+def test_trip_scheduler_reminders_zero_days_ahead(client, sample_user):
+    """Test the /api/trip-scheduler/reminders endpoint with days_ahead=0"""
+    # Create a trip schedule and reminder for now
+    create_schedule = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'Immediate Trip',
+        'location': 'Somewhere',
+        'departure_date': get_future_datetime_offset(1)
+    })
+    schedule_id = create_schedule.get_json()['trip_schedule']['id']
+
+    # Create a reminder that is due right now (days_ahead=0 should not return it
+    # as the endpoint only returns reminders within the date range)
+    client.post(f'/api/trip-schedules/{schedule_id}/reminders', json={
+        'reminder_type': 'email',
+        'remind_at': get_future_datetime_offset(1)
+    })
+
+    # With days_ahead=0, only reminders exactly at the current time would match
+    response = client.get('/api/trip-scheduler/reminders?days_ahead=0')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['days_ahead'] == 0
+
+
+def test_trip_scheduler_reminders_large_days_ahead(client, sample_user):
+    """Test the /api/trip-scheduler/reminders endpoint with large days_ahead value"""
+    # Create a trip schedule with reminder far in the future
+    create_schedule = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'Far Future Trip',
+        'location': 'Somewhere',
+        'departure_date': get_future_datetime_offset(100)
+    })
+    schedule_id = create_schedule.get_json()['trip_schedule']['id']
+
+    client.post(f'/api/trip-schedules/{schedule_id}/reminders', json={
+        'reminder_type': 'email',
+        'remind_at': get_future_datetime_offset(90)
+    })
+
+    # Test with large days_ahead value
+    response = client.get('/api/trip-scheduler/reminders?days_ahead=365')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['days_ahead'] == 365
+
+
+def test_trip_scheduler_reminders_filter_by_status_all(client, sample_user):
+    """Test filtering reminders with empty status to get all statuses"""
+    # Create a trip schedule and reminder
+    create_schedule = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'Status Test Trip',
+        'location': 'Somewhere',
+        'departure_date': get_future_datetime_offset(10)
+    })
+    schedule_id = create_schedule.get_json()['trip_schedule']['id']
+
+    client.post(f'/api/trip-schedules/{schedule_id}/reminders', json={
+        'reminder_type': 'email',
+        'remind_at': get_future_datetime_offset(5)
+    })
+
+    # Test with empty status to get all
+    response = client.get('/api/trip-scheduler/reminders?days_ahead=10&status=')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+
+
+def test_trip_scheduler_reminders_pagination(client, sample_user):
+    """Test pagination for the trip scheduler reminders endpoint"""
+    # Create a trip schedule
+    create_schedule = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'Pagination Test Trip',
+        'location': 'Test Location',
+        'departure_date': get_future_datetime_offset(20)
+    })
+    schedule_id = create_schedule.get_json()['trip_schedule']['id']
+
+    # Create multiple reminders
+    for i in range(5):
+        client.post(f'/api/trip-schedules/{schedule_id}/reminders', json={
+            'reminder_type': 'email',
+            'remind_at': get_future_datetime_offset(i + 1)
+        })
+
+    # Test pagination with per_page=2
+    response = client.get('/api/trip-scheduler/reminders?days_ahead=20&per_page=2&page=1')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert len(data['reminders']) <= 2
+    assert data['pagination']['per_page'] == 2
