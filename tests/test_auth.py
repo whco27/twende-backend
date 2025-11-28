@@ -33,6 +33,36 @@ def test_register_user_without_phone(client):
     assert data['user']['phone_number'] is None
 
 
+def test_register_with_name_field(client):
+    """Test user registration with 'name' field instead of first_name/last_name"""
+    user_data = {
+        'email': 'namefield@example.com',
+        'password': 'securepass123',
+        'name': 'John Doe'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['user']['first_name'] == 'John'
+    assert data['user']['last_name'] == 'Doe'
+
+
+def test_register_with_single_name(client):
+    """Test user registration with single word 'name' field"""
+    user_data = {
+        'email': 'singlename@example.com',
+        'password': 'securepass123',
+        'name': 'Madonna'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['user']['first_name'] == 'Madonna'
+    assert data['user']['last_name'] == 'Madonna'
+
+
 def test_register_missing_email(client):
     """Test registration with missing email field"""
     user_data = {

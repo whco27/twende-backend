@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request
 from models import db, User
 from services.notifications import notification_service
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 import re
 import logging
 
@@ -50,7 +50,10 @@ def register():
             logger.warning("Registration failed: No data provided")
             return jsonify({
                 'success': False,
-                'error': 'No data provided'
+                'error': 'No data provided',
+                'message': 'Please provide registration data in JSON format',
+                'required_fields': ['email', 'password', 'first_name', 'last_name'],
+                'optional_fields': ['phone_number']
             }), 400
 
         # Sanitize inputs (strip whitespace)
@@ -60,30 +63,41 @@ def register():
         last_name = sanitize_string(data.get('last_name'))
         phone_number = sanitize_string(data.get('phone_number'))
 
+        # Handle case where frontend sends 'name' instead of 'first_name' and 'last_name'
+        if not first_name and not last_name and data.get('name'):
+            name_parts = sanitize_string(data.get('name')).split(' ', 1)
+            first_name = name_parts[0]
+            last_name = name_parts[1] if len(name_parts) > 1 else name_parts[0]
+            logger.debug("Converted 'name' field to first_name and last_name")
+
         # Validate required fields
         if not email:
             logger.warning("Registration failed: Missing email")
             return jsonify({
                 'success': False,
-                'error': 'Missing required field: email'
+                'error': 'Missing required field: email',
+                'message': 'Email address is required for registration'
             }), 400
         if not password:
             logger.warning("Registration failed: Missing password")
             return jsonify({
                 'success': False,
-                'error': 'Missing required field: password'
+                'error': 'Missing required field: password',
+                'message': 'Password is required for registration'
             }), 400
         if not first_name:
             logger.warning("Registration failed: Missing first_name")
             return jsonify({
                 'success': False,
-                'error': 'Missing required field: first_name'
+                'error': 'Missing required field: first_name',
+                'message': 'First name is required. You can also send a "name" field which will be split into first and last name.'
             }), 400
         if not last_name:
             logger.warning("Registration failed: Missing last_name")
             return jsonify({
                 'success': False,
-                'error': 'Missing required field: last_name'
+                'error': 'Missing required field: last_name',
+                'message': 'Last name is required. You can also send a "name" field which will be split into first and last name.'
             }), 400
 
         # Validate email format
@@ -204,12 +218,37 @@ def register():
             'user': new_user.to_dict()
         }), 201
 
-    except Exception as e:
+    except ProgrammingError as e:
         db.session.rollback()
-        logger.error(f"Registration failed with exception: {type(e).__name__}: {str(e)}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"Registration failed with database programming error: {error_msg}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': 'Registration failed. Please try again later.'
+            'error': 'Database tables not initialized. Please contact administrator.',
+            'error_code': 'DATABASE_NOT_INITIALIZED',
+            'details': 'The users table may not exist. Database migration may be required.'
+        }), 500
+
+    except OperationalError as e:
+        db.session.rollback()
+        error_msg = str(e)
+        logger.error(f"Registration failed with database operational error: {error_msg}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Database connection error. Please try again later.',
+            'error_code': 'DATABASE_CONNECTION_ERROR'
+        }), 500
+
+    except Exception as e:
+        db.session.rollback()
+        error_type = type(e).__name__
+        error_msg = str(e)
+        logger.error(f"Registration failed with exception: {error_type}: {error_msg}", exc_info=True)
+        
+        return jsonify({
+            'success': False,
+            'error': 'Registration failed. Please try again later.',
+            'error_code': 'INTERNAL_ERROR'
         }), 500
 
 
