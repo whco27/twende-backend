@@ -178,6 +178,24 @@ def test_booking_tour_not_found(client, sample_user):
     assert data['success'] is False
     assert data['error_code'] == 'TOUR_NOT_FOUND'
     assert 'hint' in data
+    assert 'available_tours_count' in data
+
+
+def test_booking_tour_not_found_with_tours(client, sample_user, sample_tour):
+    """Test creating booking with non-existent tour when other tours exist"""
+    booking_data = {
+        'user_id': sample_user,
+        'tour_id': 9999,  # Non-existent tour
+        'tour_date': get_future_date(),
+        'number_of_guests': 1
+    }
+    response = client.post('/api/bookings/', json=booking_data)
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['success'] is False
+    assert data['error_code'] == 'TOUR_NOT_FOUND'
+    assert 'available_tours_sample' in data
+    assert len(data['available_tours_sample']) > 0
 
 
 def test_create_booking_no_data(client):

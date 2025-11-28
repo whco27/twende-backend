@@ -267,6 +267,7 @@ fetch(`/api/tours/`);
 | `/api/tours/` | GET | List all tours (supports `page`, `per_page`, `location` params) |
 | `/api/tours/<id>` | GET | Get tour details |
 | `/api/tours/` | POST | Create tour |
+| `/api/tours/count` | GET | Get total tours count (useful for checking data availability) |
 | `/api/tours/search` | GET | Search tours (supports `title`, `location`, `min_price`, `max_price`, `page`, `per_page` params) |
 | `/api/tours/seed` | POST | Seed database with default tours (30+ Kenyan tours) |
 | `/api/tours/bulk-import` | POST | Bulk import tours from frontend data |
@@ -1222,13 +1223,53 @@ curl "https://your-backend.up.railway.app/api/payments/?booking_id=123"
 When migrating or setting up a new environment:
 
 1. ✅ Verify database connection with `/health` endpoint
-2. ✅ Seed default tours with `POST /api/tours/seed` (creates 30+ tours)
-3. ✅ Or use `python scripts/init_tours.py` to initialize from command line
-4. ✅ Verify tours exist with `GET /api/tours/`
-5. ✅ Test payment configuration with `GET /api/payments/health`
-6. ✅ Create a test booking to verify full flow
+2. ✅ Auto-seeding is enabled by default (tours are created on startup if database is empty)
+3. ✅ Or manually seed with `POST /api/tours/seed` (creates 30+ tours)
+4. ✅ Or use `python scripts/init_tours.py` to initialize from command line
+5. ✅ Verify tours exist with `GET /api/tours/` or `GET /api/tours/count`
+6. ✅ Test payment configuration with `GET /api/payments/health`
+7. ✅ Create a test booking to verify full flow
 
-### 10. Database Initialization Script
+### 10. Auto-Seeding Configuration
+
+The backend automatically seeds the database with default tours on startup if the tours table is empty. This ensures the frontend always has tour data available without manual intervention.
+
+**Environment Variable:**
+```bash
+# Enable auto-seeding (default is true)
+AUTO_SEED_TOURS=true
+
+# Disable auto-seeding (for production environments where you want to manually manage tour data)
+AUTO_SEED_TOURS=false
+```
+
+**How Auto-Seeding Works:**
+1. On application startup, the backend checks if any tours exist in the database
+2. If no tours exist and `AUTO_SEED_TOURS=true` (default), it automatically creates 30+ default tours
+3. If tours already exist, seeding is skipped to avoid duplicates
+4. This ensures the frontend always has tour data available without 404 errors
+
+### 11. Tours Count Endpoint
+
+Check if tours data exists before fetching full tour list:
+
+```bash
+# Check tours count
+curl https://your-backend.up.railway.app/api/tours/count
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 30,
+  "has_tours": true
+}
+```
+
+This is useful for frontend to quickly verify data availability before making additional API calls.
+
+### 12. Database Initialization Script
 
 For command-line database initialization, use the provided script:
 

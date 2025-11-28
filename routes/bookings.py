@@ -114,12 +114,27 @@ def create_booking():
         # Verify tour exists and has available slots
         tour = db.session.get(Tour, data['tour_id'])
         if not tour:
+            # Check if any tours exist
+            total_tours = Tour.query.count()
+            if total_tours == 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'Tour not found',
+                    'error_code': 'TOUR_NOT_FOUND',
+                    'tour_id': data['tour_id'],
+                    'hint': 'No tours exist in the database. Use POST /api/tours/seed to create default tours, or restart the server with AUTO_SEED_TOURS=true.',
+                    'available_tours_count': 0
+                }), 404
+            # Get a sample of available tour IDs for helpful error message
+            sample_tours = Tour.query.with_entities(Tour.id, Tour.title).limit(5).all()
             return jsonify({
                 'success': False,
                 'error': 'Tour not found',
                 'error_code': 'TOUR_NOT_FOUND',
                 'tour_id': data['tour_id'],
-                'hint': 'Please ensure the tour exists in the database. Use GET /api/tours/ to list available tours or POST /api/tours/seed to create default tours.'
+                'hint': f'Tour ID {data["tour_id"]} does not exist. Use GET /api/tours/ to list available tours.',
+                'available_tours_count': total_tours,
+                'available_tours_sample': [{'id': t.id, 'title': t.title} for t in sample_tours]
             }), 404
 
         # Validate number_of_guests

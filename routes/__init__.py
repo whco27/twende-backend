@@ -120,6 +120,34 @@ def get_tours():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@tours_bp.route('/count', methods=['GET'])
+def get_tours_count():
+    """Get the total count of tours in the database.
+    
+    This endpoint is useful for frontend to check if tours data exists
+    before making additional API calls.
+    
+    Returns:
+        JSON object with:
+        - success: boolean
+        - count: total number of tours
+        - has_tours: boolean indicating if there are any tours
+    """
+    try:
+        count = Tour.query.count()
+        return jsonify({
+            'success': True,
+            'count': count,
+            'has_tours': count > 0
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @tours_bp.route('/<int:tour_id>', methods=['GET'])
 def get_tour(tour_id):
     """Get a specific tour by ID"""
@@ -127,7 +155,24 @@ def get_tour(tour_id):
         tour = Tour.query.get_or_404(tour_id)
         return jsonify(tour.to_dict()), 200
     except NotFound:
-        return jsonify({'error': 'Tour not found'}), 404
+        # Provide helpful error with available tour IDs
+        total_tours = Tour.query.count()
+        if total_tours == 0:
+            return jsonify({
+                'error': 'Tour not found',
+                'error_code': 'TOUR_NOT_FOUND',
+                'tour_id': tour_id,
+                'hint': 'No tours exist in the database. Use POST /api/tours/seed to create default tours.'
+            }), 404
+        # Get a sample of available tour IDs
+        sample_tours = Tour.query.with_entities(Tour.id, Tour.title).limit(5).all()
+        return jsonify({
+            'error': 'Tour not found',
+            'error_code': 'TOUR_NOT_FOUND',
+            'tour_id': tour_id,
+            'hint': f'Tour ID {tour_id} does not exist. There are {total_tours} tours available.',
+            'available_tours_sample': [{'id': t.id, 'title': t.title} for t in sample_tours]
+        }), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

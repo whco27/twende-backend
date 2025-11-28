@@ -3,6 +3,7 @@ from flask_cors import CORS
 from models import db, Tour, User, Booking, Payment, TripSchedule, Reminder
 from routes import tours_bp, auth_bp, bookings_bp, payments_bp, trip_schedules_bp, trip_scheduler_bp
 from services.notifications import notification_service, mail
+from data.tours_data import DEFAULT_TOURS
 import os
 import logging
 from dotenv import load_dotenv
@@ -146,6 +147,25 @@ with app.app_context():
     try:
         db.create_all()
         logger.info("Database tables created/verified successfully")
+        
+        # Auto-seed tours if enabled and no tours exist
+        auto_seed = os.getenv('AUTO_SEED_TOURS', 'true').lower() == 'true'
+        if auto_seed:
+            tour_count = Tour.query.count()
+            if tour_count == 0:
+                logger.info("No tours found in database. Auto-seeding default tours...")
+                created_count = 0
+                for tour_data in DEFAULT_TOURS:
+                    try:
+                        new_tour = Tour(**tour_data)
+                        db.session.add(new_tour)
+                        created_count += 1
+                    except Exception as tour_error:
+                        logger.warning(f"Failed to create tour '{tour_data.get('title', 'unknown')}': {str(tour_error)}")
+                db.session.commit()
+                logger.info(f"Auto-seeded {created_count} tours successfully")
+            else:
+                logger.info(f"Database already contains {tour_count} tours. Skipping auto-seed.")
     except Exception as e:
         logger.error(f"Failed to create database tables: {str(e)}")
 
