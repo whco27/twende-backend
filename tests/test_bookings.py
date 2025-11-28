@@ -200,7 +200,6 @@ def test_create_booking_missing_fields(client, sample_user, sample_tour):
 
 def test_update_booking_no_data(client, sample_user, sample_tour):
     """Test updating booking with no data returns 400"""
-    from datetime import date, timedelta
     # Create a booking first
     booking_data = {
         'user_id': sample_user,
@@ -221,7 +220,6 @@ def test_update_booking_no_data(client, sample_user, sample_tour):
 
 def test_get_specific_booking(client, sample_user, sample_tour):
     """Test getting a specific booking by ID"""
-    from datetime import date, timedelta
     # Create a booking first
     booking_data = {
         'user_id': sample_user,
