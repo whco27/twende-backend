@@ -2,7 +2,12 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timezone
+from sqlalchemy import CheckConstraint
 from .tour import db
+
+
+# Valid role values
+VALID_ROLES = ['user', 'admin']
 
 
 def utc_now():
@@ -13,6 +18,9 @@ def utc_now():
 class User(db.Model):
     """User model for storing user information"""
     __tablename__ = 'users'
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'admin')", name='valid_role'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
@@ -20,6 +28,7 @@ class User(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     phone_number = db.Column(db.String(20))
+    role = db.Column(db.String(50), default='user')  # user, admin
     created_at = db.Column(db.DateTime, default=utc_now)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
     is_active = db.Column(db.Boolean, default=True)
@@ -46,6 +55,7 @@ class User(db.Model):
             'first_name': self.first_name,
             'last_name': self.last_name,
             'phone_number': self.phone_number,
+            'role': self.role,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'is_active': self.is_active
         }

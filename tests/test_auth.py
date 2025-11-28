@@ -505,3 +505,49 @@ def test_update_user_whitespace_names_trimmed(client, sample_user):
     data = response.get_json()
     assert data['user']['first_name'] == 'UpdatedFirst'
     assert data['user']['last_name'] == 'UpdatedLast'
+
+
+# Tests for user role field
+
+
+def test_user_has_default_role(client):
+    """Test that new users have 'user' role by default"""
+    user_data = {
+        'email': 'roletest@example.com',
+        'password': 'securepass123',
+        'first_name': 'Role',
+        'last_name': 'Test'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 201
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'role' in data['user']
+    assert data['user']['role'] == 'user'
+
+
+def test_list_users_includes_role(client, sample_user):
+    """Test that listing users includes the role field for admin dashboard"""
+    response = client.get('/api/auth/users')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert len(data['users']) > 0
+    # Verify all users have role field
+    for user in data['users']:
+        assert 'role' in user
+        # Check all essential fields for admin dashboard
+        assert 'id' in user
+        assert 'email' in user
+        assert 'first_name' in user
+        assert 'last_name' in user
+        assert 'is_active' in user
+
+
+def test_get_user_includes_role(client, sample_user):
+    """Test that getting a single user includes the role field"""
+    response = client.get(f'/api/auth/user/{sample_user}')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'role' in data['user']
