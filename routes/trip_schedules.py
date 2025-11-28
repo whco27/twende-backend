@@ -131,7 +131,7 @@ def get_trip_schedule(schedule_id):
 def create_trip_schedule():
     """Create a new trip schedule"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
 
         if not data:
             return jsonify({
@@ -235,7 +235,7 @@ def update_trip_schedule(schedule_id):
                 'error': 'Trip schedule not found'
             }), 404
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
@@ -421,7 +421,7 @@ def create_reminder(schedule_id):
                 'error': 'Trip schedule not found'
             }), 404
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
@@ -517,7 +517,7 @@ def update_reminder(reminder_id):
                 'error': 'Reminder not found'
             }), 404
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
