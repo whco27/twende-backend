@@ -1,4 +1,6 @@
 """Tests for authentication routes"""
+from app import app, db
+from models import User
 
 
 def test_register_user(client):
@@ -581,3 +583,69 @@ def test_get_user_includes_role(client, sample_user):
     data = response.get_json()
     assert data['success'] is True
     assert 'role' in data['user']
+
+
+def test_register_phone_invalid_format(client):
+    """Test registration with invalid phone number format"""
+    user_data = {
+        'email': 'badphone@example.com',
+        'password': 'password123',
+        'first_name': 'Test',
+        'last_name': 'User',
+        'phone_number': 'abc123xyz'  # Invalid format
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'phone number format' in data['error'].lower()
+
+
+def test_register_phone_valid_formats(client):
+    """Test registration with various valid phone number formats"""
+    valid_phones = [
+        '+254722334455',
+        '0722-334-455',
+        '(07) 22 334 455',
+        '0722334455'
+    ]
+    for i, phone in enumerate(valid_phones):
+        user_data = {
+            'email': f'validphone{i}@example.com',
+            'password': 'password123',
+            'first_name': 'Test',
+            'last_name': 'User',
+            'phone_number': phone
+        }
+        response = client.post('/api/auth/register', json=user_data)
+        assert response.status_code == 201, f"Failed for phone format: {phone}"
+
+
+def test_login_deactivated_account(client):
+    """Test login with deactivated account returns proper error code"""
+    # First register a user
+    user_data = {
+        'email': 'deactivated@example.com',
+        'password': 'password123',
+        'first_name': 'Deactivated',
+        'last_name': 'User'
+    }
+    response = client.post('/api/auth/register', json=user_data)
+    assert response.status_code == 201
+
+    # Deactivate the user directly in DB
+    with app.app_context():
+        user = User.query.filter_by(email='deactivated@example.com').first()
+        user.is_active = False
+        db.session.commit()
+
+    # Try to login
+    response = client.post('/api/auth/login', json={
+        'email': 'deactivated@example.com',
+        'password': 'password123'
+    })
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data['success'] is False
+    assert data['error_code'] == 'ACCOUNT_DEACTIVATED'
+    assert 'message' in data
