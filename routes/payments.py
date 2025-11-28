@@ -81,6 +81,21 @@ class DarajaAPI:
             'is_configured': self.is_configured()
         }
 
+    def get_missing_configuration(self):
+        """Return list of missing configuration variable names"""
+        missing = []
+        if not self.consumer_key:
+            missing.append('DARAJA_CONSUMER_KEY')
+        if not self.consumer_secret:
+            missing.append('DARAJA_CONSUMER_SECRET')
+        if not self.passkey:
+            missing.append('DARAJA_PASSKEY')
+        if not self.shortcode:
+            missing.append('DARAJA_SHORTCODE')
+        if not self.callback_url:
+            missing.append('DARAJA_CALLBACK_URL')
+        return missing
+
     def get_access_token(self):
         """Get OAuth access token from Daraja API with enhanced error handling"""
         url = f'{self.base_url}/oauth/v1/generate?grant_type=client_credentials'
@@ -476,25 +491,12 @@ def initiate_payment():
 
         # Check if Daraja credentials are configured
         if not daraja.is_configured():
-            config_status = daraja.get_configuration_status()
-            logger.error(f"Daraja not configured: {config_status}")
-            # Build list of missing configuration
-            missing_config = []
-            if not config_status['consumer_key_set']:
-                missing_config.append('DARAJA_CONSUMER_KEY')
-            if not config_status['consumer_secret_set']:
-                missing_config.append('DARAJA_CONSUMER_SECRET')
-            if not config_status['passkey_set']:
-                missing_config.append('DARAJA_PASSKEY')
-            if not config_status['shortcode_set']:
-                missing_config.append('DARAJA_SHORTCODE')
-            if not config_status['callback_url_set']:
-                missing_config.append('DARAJA_CALLBACK_URL')
+            logger.error(f"Daraja not configured: {daraja.get_configuration_status()}")
             return jsonify({
                 'success': False,
                 'error': 'Payment service is not configured. Please contact support.',
                 'error_code': 'SERVICE_NOT_CONFIGURED',
-                'missing_configuration': missing_config,
+                'missing_configuration': daraja.get_missing_configuration(),
                 'hint': 'Configure Daraja API credentials in environment variables. Get credentials from https://developer.safaricom.co.ke/'
             }), 503
 
@@ -846,17 +848,7 @@ def payment_service_health():
             health_status['connectivity'] = 'not_tested'
             health_status['message'] = 'Service not configured - cannot test connectivity'
             # Provide hints for missing configuration
-            missing_config = []
-            if not config_status['consumer_key_set']:
-                missing_config.append('DARAJA_CONSUMER_KEY')
-            if not config_status['consumer_secret_set']:
-                missing_config.append('DARAJA_CONSUMER_SECRET')
-            if not config_status['passkey_set']:
-                missing_config.append('DARAJA_PASSKEY')
-            if not config_status['shortcode_set']:
-                missing_config.append('DARAJA_SHORTCODE')
-            if not config_status['callback_url_set']:
-                missing_config.append('DARAJA_CALLBACK_URL')
+            missing_config = daraja.get_missing_configuration()
             if missing_config:
                 health_status['missing_configuration'] = missing_config
                 health_status['hint'] = 'Set the missing environment variables in .env or your deployment platform'
@@ -901,23 +893,12 @@ def test_daraja_connection():
         # Test 1: Configuration check
         result['tests']['configuration'] = {
             'passed': config_status['is_configured'],
-            'message': 'All required credentials are configured' if config_status['is_configured'] 
-                       else 'Missing required Daraja credentials'
+            'message': ('All required credentials are configured' if config_status['is_configured']
+                        else 'Missing required Daraja credentials')
         }
         
         if not config_status['is_configured']:
-            missing = []
-            if not config_status['consumer_key_set']:
-                missing.append('DARAJA_CONSUMER_KEY')
-            if not config_status['consumer_secret_set']:
-                missing.append('DARAJA_CONSUMER_SECRET')
-            if not config_status['passkey_set']:
-                missing.append('DARAJA_PASSKEY')
-            if not config_status['shortcode_set']:
-                missing.append('DARAJA_SHORTCODE')
-            if not config_status['callback_url_set']:
-                missing.append('DARAJA_CALLBACK_URL')
-            result['tests']['configuration']['missing_variables'] = missing
+            result['tests']['configuration']['missing_variables'] = daraja.get_missing_configuration()
             result['tests']['configuration']['hint'] = (
                 'Set these environment variables in your .env file or deployment platform. '
                 'Get credentials from https://developer.safaricom.co.ke/'
