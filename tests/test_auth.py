@@ -110,7 +110,14 @@ def test_register_duplicate_email(client):
     # Second registration with same email
     response = client.post('/api/auth/register', json=user_data)
     assert response.status_code == 409
-    assert response.get_json()['success'] is False
+    data = response.get_json()
+    assert data['success'] is False
+    # Verify enhanced error response
+    assert 'error_code' in data
+    assert data['error_code'] == 'EMAIL_ALREADY_EXISTS'
+    assert 'message' in data
+    assert 'suggestions' in data
+    assert len(data['suggestions']) >= 2
 
 
 def test_register_duplicate_email_case_insensitive(client):

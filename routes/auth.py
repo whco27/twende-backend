@@ -139,7 +139,14 @@ def register():
             logger.warning("Registration failed: Email already exists")
             return jsonify({
                 'success': False,
-                'error': 'User with this email already exists'
+                'error': 'A user with this email already exists',
+                'error_code': 'EMAIL_ALREADY_EXISTS',
+                'message': 'This email address is already registered. Please use a different email or try logging in instead.',
+                'suggestions': [
+                    'Use a different email address',
+                    'Try logging in with your existing account',
+                    'Use the forgot password feature if you forgot your credentials'
+                ]
             }), 409
 
         # Create new user
@@ -167,7 +174,13 @@ def register():
             )
             return jsonify({
                 'success': False,
-                'error': 'Email is already in use'
+                'error': 'This email address is already registered',
+                'error_code': 'EMAIL_ALREADY_EXISTS',
+                'message': 'Please use a different email address or try logging in.',
+                'suggestions': [
+                    'Use a different email address',
+                    'Try logging in with your existing account'
+                ]
             }), 409
 
         # Send notification emails (non-blocking - failures don't affect registration)

@@ -571,3 +571,110 @@ def test_update_trip_schedule_empty_location(client, sample_user):
     data = response.get_json()
     assert data['success'] is False
     assert 'location' in data['error'].lower()
+
+
+# Tests for /api/trip-scheduler/* backward compatibility endpoints
+
+def test_trip_scheduler_reminders_endpoint(client, sample_user):
+    """Test the /api/trip-scheduler/reminders endpoint with days_ahead parameter"""
+    # Create a trip schedule
+    create_schedule = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'Test Trip',
+        'location': 'Somewhere',
+        'departure_date': get_future_datetime_offset(5)
+    })
+    schedule_id = create_schedule.get_json()['trip_schedule']['id']
+
+    # Create a reminder within the next 7 days
+    client.post(f'/api/trip-schedules/{schedule_id}/reminders', json={
+        'reminder_type': 'email',
+        'remind_at': get_future_datetime_offset(3)
+    })
+
+    # Test the trip-scheduler endpoint
+    response = client.get('/api/trip-scheduler/reminders?days_ahead=7')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert 'reminders' in data
+    assert 'days_ahead' in data
+    assert data['days_ahead'] == 7
+    assert 'pagination' in data
+
+
+def test_trip_scheduler_reminders_default_days(client, sample_user):
+    """Test the /api/trip-scheduler/reminders endpoint with default days_ahead"""
+    response = client.get('/api/trip-scheduler/reminders')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['days_ahead'] == 7  # Default value
+
+
+def test_trip_scheduler_reminders_filter_by_user(client, sample_user):
+    """Test filtering reminders by user_id"""
+    # Create a trip schedule with reminder
+    create_schedule = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'User Trip',
+        'location': 'Test Location',
+        'departure_date': get_future_datetime_offset(10)
+    })
+    schedule_id = create_schedule.get_json()['trip_schedule']['id']
+
+    client.post(f'/api/trip-schedules/{schedule_id}/reminders', json={
+        'reminder_type': 'email',
+        'remind_at': get_future_datetime_offset(5)
+    })
+
+    # Test filtering by user_id
+    response = client.get(f'/api/trip-scheduler/reminders?days_ahead=10&user_id={sample_user}')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+
+
+def test_trip_scheduler_reminders_invalid_days_ahead(client):
+    """Test the /api/trip-scheduler/reminders endpoint with invalid days_ahead"""
+    response = client.get('/api/trip-scheduler/reminders?days_ahead=-5')
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'days_ahead' in data['error']
+
+
+def test_trip_scheduler_get_reminder_by_id(client, sample_user):
+    """Test the /api/trip-scheduler/reminders/<id> endpoint"""
+    # Create a trip schedule with reminder
+    create_schedule = client.post('/api/trip-schedules/', json={
+        'user_id': sample_user,
+        'title': 'Test Trip',
+        'location': 'Somewhere',
+        'departure_date': get_future_datetime()
+    })
+    schedule_id = create_schedule.get_json()['trip_schedule']['id']
+
+    create_reminder = client.post(f'/api/trip-schedules/{schedule_id}/reminders', json={
+        'reminder_type': 'email',
+        'remind_at': get_future_datetime_offset(20)
+    })
+    reminder_id = create_reminder.get_json()['reminder']['id']
+
+    # Test the trip-scheduler endpoint
+    response = client.get(f'/api/trip-scheduler/reminders/{reminder_id}')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['reminder']['id'] == reminder_id
+    # Check that trip_schedule info is included
+    assert 'trip_schedule' in data['reminder']
+    assert data['reminder']['trip_schedule']['id'] == schedule_id
+
+
+def test_trip_scheduler_get_reminder_not_found(client):
+    """Test the /api/trip-scheduler/reminders/<id> endpoint with non-existent reminder"""
+    response = client.get('/api/trip-scheduler/reminders/9999')
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['success'] is False

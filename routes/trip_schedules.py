@@ -1,13 +1,16 @@
 """Trip schedule routes for managing trip schedules and reminders"""
 from flask import Blueprint, jsonify, request
 from models import db, TripSchedule, Reminder, User, Booking
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from services.notifications import notification_service
 import logging
 
 logger = logging.getLogger(__name__)
 
 trip_schedules_bp = Blueprint('trip_schedules', __name__, url_prefix='/api/trip-schedules')
+
+# Additional blueprint for backward compatibility with /api/trip-scheduler
+trip_scheduler_bp = Blueprint('trip_scheduler', __name__, url_prefix='/api/trip-scheduler')
 
 # Default pagination settings
 DEFAULT_PAGE = 1
@@ -801,6 +804,142 @@ def process_pending_reminders():
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error processing reminders: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============================================================================
+# Trip Scheduler Routes (backward compatibility for /api/trip-scheduler/*)
+# ============================================================================
+
+@trip_scheduler_bp.route('/reminders', methods=['GET'])
+def get_upcoming_reminders():
+    """Get reminders within a specified number of days ahead.
+    
+    Query Parameters:
+        days_ahead: Number of days to look ahead for reminders (default: 7)
+        user_id: Optional filter by user ID
+        status: Filter by reminder status (default: 'pending', use empty string to get all)
+        page: Page number for pagination (min 1)
+        per_page: Results per page for pagination (min 1, max 100)
+    
+    Returns:
+        JSON object with matching reminders and pagination info
+    """
+    try:
+        days_ahead = request.args.get('days_ahead', 7, type=int)
+        user_id = request.args.get('user_id', type=int)
+        status = request.args.get('status', 'pending')
+        page = request.args.get('page', DEFAULT_PAGE, type=int)
+        per_page = request.args.get('per_page', DEFAULT_PER_PAGE, type=int)
+
+        # Validate days_ahead (must be non-negative)
+        if days_ahead < 0:
+            return jsonify({
+                'success': False,
+                'error': 'days_ahead must be a non-negative integer'
+            }), 400
+
+        # Validate pagination parameters
+        if page < 1:
+            page = DEFAULT_PAGE
+        if per_page < 1 or per_page > MAX_PER_PAGE:
+            per_page = DEFAULT_PER_PAGE
+
+        now = datetime.now(timezone.utc)
+        end_date = now + timedelta(days=days_ahead)
+
+        # Build query for reminders within the date range
+        # Use joinedload to eagerly load trip_schedule and avoid N+1 queries
+        from sqlalchemy.orm import joinedload
+        query = Reminder.query.options(
+            joinedload(Reminder.trip_schedule)
+        ).filter(
+            Reminder.remind_at >= now,
+            Reminder.remind_at <= end_date
+        )
+
+        # Filter by status if provided (empty string gets all statuses)
+        if status:
+            query = query.filter(Reminder.status == status)
+
+        # Filter by user_id if provided using has() for cleaner relationship filter
+        if user_id:
+            query = query.filter(Reminder.trip_schedule.has(user_id=user_id))
+
+        # Order by remind_at ascending (soonest first)
+        pagination = query.order_by(Reminder.remind_at.asc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+
+        # Build response with additional trip schedule info
+        reminders_data = []
+        for reminder in pagination.items:
+            reminder_dict = reminder.to_dict()
+            # Include trip schedule info if available
+            if reminder.trip_schedule:
+                reminder_dict['trip_schedule'] = {
+                    'id': reminder.trip_schedule.id,
+                    'title': reminder.trip_schedule.title,
+                    'location': reminder.trip_schedule.location,
+                    'departure_date': reminder.trip_schedule.departure_date.isoformat() if reminder.trip_schedule.departure_date else None,
+                    'user_id': reminder.trip_schedule.user_id
+                }
+            reminders_data.append(reminder_dict)
+
+        return jsonify({
+            'success': True,
+            'reminders': reminders_data,
+            'days_ahead': days_ahead,
+            'pagination': {
+                'page': pagination.page,
+                'per_page': pagination.per_page,
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting upcoming reminders: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@trip_scheduler_bp.route('/reminders/<int:reminder_id>', methods=['GET'])
+def get_scheduler_reminder(reminder_id):
+    """Get a specific reminder by ID (backward compatibility endpoint)"""
+    try:
+        reminder = db.session.get(Reminder, reminder_id)
+        if not reminder:
+            return jsonify({
+                'success': False,
+                'error': 'Reminder not found'
+            }), 404
+
+        reminder_dict = reminder.to_dict()
+        # Include trip schedule info if available
+        if reminder.trip_schedule:
+            reminder_dict['trip_schedule'] = {
+                'id': reminder.trip_schedule.id,
+                'title': reminder.trip_schedule.title,
+                'location': reminder.trip_schedule.location,
+                'departure_date': reminder.trip_schedule.departure_date.isoformat() if reminder.trip_schedule.departure_date else None,
+                'user_id': reminder.trip_schedule.user_id
+            }
+
+        return jsonify({
+            'success': True,
+            'reminder': reminder_dict
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error getting reminder: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)

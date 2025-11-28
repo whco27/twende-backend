@@ -8,7 +8,7 @@ from data.tours_data import DEFAULT_TOURS
 from .auth import auth_bp
 from .bookings import bookings_bp
 from .payments import payments_bp
-from .trip_schedules import trip_schedules_bp
+from .trip_schedules import trip_schedules_bp, trip_scheduler_bp
 
 tours_bp = Blueprint('tours', __name__, url_prefix='/api/tours')
 
