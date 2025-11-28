@@ -79,6 +79,39 @@ def test_get_tour_not_found(client):
     """Test getting a non-existent tour"""
     response = client.get('/api/tours/9999')
     assert response.status_code == 404
+    data = response.get_json()
+    assert data['error_code'] == 'TOUR_NOT_FOUND'
+    assert 'hint' in data
+
+
+def test_get_tour_not_found_with_tours_existing(client, sample_tour):
+    """Test getting a non-existent tour when other tours exist"""
+    response = client.get('/api/tours/9999')
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['error_code'] == 'TOUR_NOT_FOUND'
+    assert 'available_tours_sample' in data
+    assert len(data['available_tours_sample']) > 0
+
+
+def test_get_tours_count_empty(client):
+    """Test getting tours count when no tours exist"""
+    response = client.get('/api/tours/count')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['count'] == 0
+    assert data['has_tours'] is False
+
+
+def test_get_tours_count_with_tours(client, sample_tour):
+    """Test getting tours count when tours exist"""
+    response = client.get('/api/tours/count')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['count'] > 0
+    assert data['has_tours'] is True
 
 
 def test_update_tour(client, sample_tour):
