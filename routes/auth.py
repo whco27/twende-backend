@@ -2,7 +2,7 @@
 from flask import Blueprint, jsonify, request
 from models import db, User
 from services.notifications import notification_service
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 import re
 import logging
 
@@ -218,26 +218,32 @@ def register():
             'user': new_user.to_dict()
         }), 201
 
+    except ProgrammingError as e:
+        db.session.rollback()
+        error_msg = str(e)
+        logger.error(f"Registration failed with database programming error: {error_msg}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Database tables not initialized. Please contact administrator.',
+            'error_code': 'DATABASE_NOT_INITIALIZED',
+            'details': 'The users table may not exist. Database migration may be required.'
+        }), 500
+
+    except OperationalError as e:
+        db.session.rollback()
+        error_msg = str(e)
+        logger.error(f"Registration failed with database operational error: {error_msg}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Database connection error. Please try again later.',
+            'error_code': 'DATABASE_CONNECTION_ERROR'
+        }), 500
+
     except Exception as e:
         db.session.rollback()
         error_type = type(e).__name__
         error_msg = str(e)
         logger.error(f"Registration failed with exception: {error_type}: {error_msg}", exc_info=True)
-        
-        # Provide more context for common database errors
-        if 'relation' in error_msg.lower() and 'does not exist' in error_msg.lower():
-            return jsonify({
-                'success': False,
-                'error': 'Database tables not initialized. Please contact administrator.',
-                'error_code': 'DATABASE_NOT_INITIALIZED',
-                'details': 'The users table may not exist. Database migration may be required.'
-            }), 500
-        elif 'connection' in error_msg.lower() or 'connect' in error_msg.lower():
-            return jsonify({
-                'success': False,
-                'error': 'Database connection error. Please try again later.',
-                'error_code': 'DATABASE_CONNECTION_ERROR'
-            }), 500
         
         return jsonify({
             'success': False,
