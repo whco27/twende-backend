@@ -1,4 +1,6 @@
 """Tests for authentication routes"""
+from app import app, db
+from models import User
 
 
 def test_register_user(client):
@@ -632,8 +634,6 @@ def test_login_deactivated_account(client):
     assert response.status_code == 201
 
     # Deactivate the user directly in DB
-    from app import app, db
-    from models import User
     with app.app_context():
         user = User.query.filter_by(email='deactivated@example.com').first()
         user.is_active = False
