@@ -699,7 +699,7 @@ def test_trip_scheduler_reminders_no_upcoming_trips(client):
 
 def test_trip_scheduler_reminders_zero_days_ahead(client, sample_user):
     """Test the /api/trip-scheduler/reminders endpoint with days_ahead=0"""
-    # Create a trip schedule and reminder for now
+    # Create a trip schedule with reminder set 1 day in the future
     create_schedule = client.post('/api/trip-schedules/', json={
         'user_id': sample_user,
         'title': 'Immediate Trip',
@@ -708,19 +708,21 @@ def test_trip_scheduler_reminders_zero_days_ahead(client, sample_user):
     })
     schedule_id = create_schedule.get_json()['trip_schedule']['id']
 
-    # Create a reminder that is due right now (days_ahead=0 should not return it
-    # as the endpoint only returns reminders within the date range)
+    # Create a reminder 1 day in the future
     client.post(f'/api/trip-schedules/{schedule_id}/reminders', json={
         'reminder_type': 'email',
         'remind_at': get_future_datetime_offset(1)
     })
 
-    # With days_ahead=0, only reminders exactly at the current time would match
+    # With days_ahead=0, no future reminders should be returned
+    # since the date range is now to now (essentially zero window)
     response = client.get('/api/trip-scheduler/reminders?days_ahead=0')
     assert response.status_code == 200
     data = response.get_json()
     assert data['success'] is True
     assert data['days_ahead'] == 0
+    # Reminder is 1 day in the future, so it won't appear in days_ahead=0
+    assert len(data['reminders']) == 0
 
 
 def test_trip_scheduler_reminders_large_days_ahead(client, sample_user):

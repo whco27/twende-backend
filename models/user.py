@@ -2,7 +2,12 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timezone
+from sqlalchemy import CheckConstraint
 from .tour import db
+
+
+# Valid role values
+VALID_ROLES = ['user', 'admin']
 
 
 def utc_now():
@@ -13,6 +18,9 @@ def utc_now():
 class User(db.Model):
     """User model for storing user information"""
     __tablename__ = 'users'
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'admin')", name='valid_role'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
