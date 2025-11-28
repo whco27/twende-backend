@@ -643,7 +643,14 @@ def payment_callback():
         else:
             # Payment failed or cancelled
             logger.warning(f"Payment failed for booking {payment.booking_id}: {result_desc}")
-            payment.status = 'failed'
+            
+            # Distinguish between cancelled and failed based on result code
+            # Result code 1032 means user cancelled the transaction
+            if result_code == 1032:
+                payment.status = 'cancelled'
+                logger.info(f"Payment cancelled by user for booking {payment.booking_id}")
+            else:
+                payment.status = 'failed'
 
             # Update booking
             booking = db.session.get(Booking, payment.booking_id)
@@ -696,14 +703,21 @@ def check_payment_status(checkout_request_id):
                     db.session.commit()
                     logger.info(f"Payment {checkout_request_id} confirmed via query")
                 elif result_code_str:
-                    payment.status = 'failed'
                     try:
                         payment.result_code = int(result_code_str)
                     except (ValueError, TypeError):
                         payment.result_code = None
                     payment.result_description = result.get('ResultDesc')
+                    
+                    # Distinguish between cancelled and failed based on result code
+                    # Result code 1032 means user cancelled the transaction
+                    if result_code_str == '1032':
+                        payment.status = 'cancelled'
+                        logger.info(f"Payment {checkout_request_id} cancelled by user")
+                    else:
+                        payment.status = 'failed'
+                        logger.info(f"Payment {checkout_request_id} failed via query: {result.get('ResultDesc')}")
                     db.session.commit()
-                    logger.info(f"Payment {checkout_request_id} failed via query: {result.get('ResultDesc')}")
             except DarajaAPIError as e:
                 # If query fails, return current database status with warning
                 logger.warning(f"Failed to query Daraja API for status: {e.message}")

@@ -164,6 +164,43 @@
         .instructions li {
             margin-bottom: 5px;
         }
+        .status-details {
+            margin-top: 10px;
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        .btn-retry {
+            background: #ff9800;
+            margin-top: 10px;
+        }
+        .btn-retry:hover {
+            background: #f57c00;
+        }
+        .btn-check-status {
+            background: #9c27b0;
+            margin-top: 10px;
+        }
+        .btn-check-status:hover {
+            background: #7b1fa2;
+        }
+        .booking-status {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        .booking-status.paid {
+            background: #d4edda;
+            color: #155724;
+        }
+        .booking-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .booking-status.unpaid {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
         .mpesa-text-logo {
             font-size: 36px;
             font-weight: bold;
@@ -210,12 +247,22 @@
                 <div class="amount" id="paymentAmount">KES 0</div>
             </div>
 
+            <div id="bookingStatusDisplay" class="booking-status" style="display: none;"></div>
+
             <button type="button" id="loadBookingBtn" class="btn" style="margin-bottom: 10px; background: #2196F3;">
                 Load Booking Details
             </button>
 
             <button type="submit" class="btn" id="payBtn" disabled>
                 Pay Now
+            </button>
+
+            <button type="button" id="checkStatusBtn" class="btn btn-check-status" style="display: none;">
+                Check Payment Status
+            </button>
+
+            <button type="button" id="retryBtn" class="btn btn-retry" style="display: none;">
+                Try Again
             </button>
         </form>
 
@@ -239,14 +286,65 @@
 
         let currentBooking = null;
         let checkoutRequestId = null;
+        let pollingActive = false;
 
         const bookingIdInput = document.getElementById('bookingId');
         const phoneInput = document.getElementById('phoneNumber');
         const loadBtn = document.getElementById('loadBookingBtn');
         const payBtn = document.getElementById('payBtn');
+        const checkStatusBtn = document.getElementById('checkStatusBtn');
+        const retryBtn = document.getElementById('retryBtn');
         const amountDisplay = document.getElementById('amountDisplay');
         const paymentAmount = document.getElementById('paymentAmount');
         const statusMessage = document.getElementById('statusMessage');
+        const bookingStatusDisplay = document.getElementById('bookingStatusDisplay');
+
+        // M-Pesa result code descriptions
+        const MPESA_RESULT_CODES = {
+            0: 'Transaction completed successfully',
+            1: 'Insufficient funds in your M-Pesa account',
+            1032: 'Transaction cancelled by user',
+            1037: 'Transaction timed out. Please try again',
+            2001: 'Invalid initiator information',
+            1025: 'Invalid phone number format',
+            1019: 'Transaction has expired',
+            17: 'System error. Please try again later'
+        };
+
+        // Get user-friendly message for M-Pesa result code
+        function getMpesaResultMessage(resultCode, defaultMessage) {
+            const code = parseInt(resultCode);
+            return MPESA_RESULT_CODES[code] || defaultMessage || 'Payment was not completed';
+        }
+
+        // Show booking payment status
+        function showBookingStatus(booking) {
+            if (!booking) {
+                bookingStatusDisplay.style.display = 'none';
+                return;
+            }
+
+            let statusText = '';
+            let statusClass = '';
+
+            switch (booking.payment_status) {
+                case 'paid':
+                    statusText = '✓ This booking has been paid';
+                    statusClass = 'paid';
+                    break;
+                case 'pending':
+                    statusText = '⏳ Payment is pending - check your phone for M-Pesa prompt';
+                    statusClass = 'pending';
+                    break;
+                default:
+                    statusText = 'Payment required to confirm booking';
+                    statusClass = 'unpaid';
+            }
+
+            bookingStatusDisplay.textContent = statusText;
+            bookingStatusDisplay.className = `booking-status ${statusClass}`;
+            bookingStatusDisplay.style.display = 'block';
+        }
 
         // Load booking details
         loadBtn.addEventListener('click', async () => {
@@ -267,12 +365,23 @@
                     currentBooking = data.booking;
                     paymentAmount.textContent = `KES ${currentBooking.total_amount.toLocaleString()}`;
                     amountDisplay.style.display = 'block';
-                    payBtn.disabled = false;
-                    showStatus(`Booking found: ${currentBooking.tour.title}`, 'success');
+                    
+                    // Show booking payment status
+                    showBookingStatus(currentBooking);
+                    
+                    // Enable/disable pay button based on status
+                    if (currentBooking.payment_status === 'paid') {
+                        payBtn.disabled = true;
+                        showStatus('This booking is already paid. Thank you!', 'success');
+                    } else {
+                        payBtn.disabled = false;
+                        showStatus(`Booking found: ${currentBooking.tour.title}`, 'success');
+                    }
                 } else {
                     showStatus(data.error || 'Booking not found', 'error');
                     payBtn.disabled = true;
                     amountDisplay.style.display = 'none';
+                    bookingStatusDisplay.style.display = 'none';
                 }
             } catch (error) {
                 showStatus('Failed to load booking. Please try again.', 'error');
@@ -301,13 +410,15 @@
             // Validate phone number format
             const cleanPhone = phoneNumber.replace(/\D/g, '');
             if (cleanPhone.length < 9 || cleanPhone.length > 12) {
-                showStatus('Invalid phone number format', 'error');
+                showStatus('Invalid phone number format. Use 07XXXXXXXX or 254XXXXXXXXX', 'error');
                 return;
             }
 
             payBtn.disabled = true;
             payBtn.classList.add('btn-loading');
             payBtn.textContent = 'Processing...';
+            retryBtn.style.display = 'none';
+            checkStatusBtn.style.display = 'none';
 
             try {
                 const response = await fetch(`${API_BASE}/api/payments/initiate`, {
@@ -323,31 +434,51 @@
 
                 if (data.success) {
                     checkoutRequestId = data.checkout_request_id;
-                    showStatus('Payment initiated! Check your phone for the M-Pesa prompt.', 'pending');
+                    showStatus('Payment initiated! Check your phone for the M-Pesa prompt.', 'pending', 
+                        'Enter your M-Pesa PIN when prompted on your phone');
+                    checkStatusBtn.style.display = 'block';
                     
                     // Start polling for payment status
                     pollPaymentStatus();
                 } else {
                     // Handle specific error codes with user-friendly messages
                     let errorMessage = data.error || 'Failed to initiate payment';
+                    let hint = '';
                     
-                    if (data.error_code === 'SERVICE_NOT_CONFIGURED') {
-                        errorMessage = 'Payment service is temporarily unavailable. Please try again later or contact support.';
-                    } else if (data.error_code === 'INVALID_PHONE') {
-                        errorMessage = data.error + (data.hint ? ` (${data.hint})` : '');
-                    } else if (data.error_code === 'ALREADY_PAID') {
-                        errorMessage = 'This booking has already been paid.';
-                    } else if (data.error_code === 'TIMEOUT') {
-                        errorMessage = 'Payment service is slow. Please try again in a moment.';
-                    } else if (data.error_code === 'CONNECTION_ERROR') {
-                        errorMessage = 'Unable to connect to payment service. Please check your connection and try again.';
+                    switch (data.error_code) {
+                        case 'SERVICE_NOT_CONFIGURED':
+                            errorMessage = 'Payment service is temporarily unavailable.';
+                            hint = 'Please try again later or contact support.';
+                            break;
+                        case 'INVALID_PHONE':
+                            errorMessage = data.error;
+                            hint = data.hint || 'Use format: 07XXXXXXXX or 254XXXXXXXXX';
+                            break;
+                        case 'ALREADY_PAID':
+                            errorMessage = 'This booking has already been paid.';
+                            hint = 'Refresh the page to see updated status.';
+                            break;
+                        case 'TIMEOUT':
+                            errorMessage = 'Payment service is slow.';
+                            hint = 'Please try again in a moment.';
+                            break;
+                        case 'CONNECTION_ERROR':
+                            errorMessage = 'Unable to connect to payment service.';
+                            hint = 'Please check your connection and try again.';
+                            break;
+                        case 'AUTH_FAILED':
+                            errorMessage = 'Payment authentication failed.';
+                            hint = 'Please contact support if this persists.';
+                            break;
                     }
                     
-                    showStatus(errorMessage, 'error');
+                    showStatus(errorMessage, 'error', hint);
                     payBtn.disabled = false;
+                    retryBtn.style.display = 'none';
                 }
             } catch (error) {
-                showStatus('Failed to initiate payment. Please check your connection and try again.', 'error');
+                showStatus('Failed to initiate payment.', 'error', 
+                    'Please check your connection and try again.');
                 payBtn.disabled = false;
             } finally {
                 payBtn.classList.remove('btn-loading');
@@ -355,16 +486,104 @@
             }
         });
 
+        // Retry button handler
+        retryBtn.addEventListener('click', () => {
+            retryBtn.style.display = 'none';
+            checkStatusBtn.style.display = 'none';
+            payBtn.disabled = false;
+            showStatus('Ready to try again', 'pending', 'Click "Pay Now" to initiate a new payment');
+        });
+
+        // Check status button handler
+        checkStatusBtn.addEventListener('click', async () => {
+            if (!checkoutRequestId) {
+                showStatus('No payment to check', 'error');
+                return;
+            }
+            
+            checkStatusBtn.disabled = true;
+            checkStatusBtn.textContent = 'Checking...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/payments/status/${checkoutRequestId}`);
+                const data = await response.json();
+                
+                if (data.success && data.payment) {
+                    handlePaymentStatus(data.payment);
+                } else {
+                    showStatus('Unable to check payment status', 'error');
+                }
+            } catch (error) {
+                showStatus('Failed to check status. Please try again.', 'error');
+            } finally {
+                checkStatusBtn.disabled = false;
+                checkStatusBtn.textContent = 'Check Payment Status';
+            }
+        });
+
+        // Handle payment status from API
+        function handlePaymentStatus(payment) {
+            const status = payment.status;
+            
+            switch (status) {
+                case 'completed':
+                    showStatus('Payment successful! Your booking is confirmed.', 'success',
+                        payment.mpesa_receipt_number ? `Receipt: ${payment.mpesa_receipt_number}` : '');
+                    payBtn.disabled = true;
+                    retryBtn.style.display = 'none';
+                    checkStatusBtn.style.display = 'none';
+                    pollingActive = false;
+                    break;
+                    
+                case 'failed':
+                    const failureMessage = getMpesaResultMessage(payment.result_code, payment.result_description);
+                    showStatus(`Payment failed: ${failureMessage}`, 'error');
+                    payBtn.disabled = false;
+                    retryBtn.style.display = 'block';
+                    checkStatusBtn.style.display = 'none';
+                    pollingActive = false;
+                    break;
+                    
+                case 'cancelled':
+                    showStatus('Payment was cancelled', 'error', 
+                        'You cancelled the transaction on your phone. Click "Try Again" to start a new payment.');
+                    payBtn.disabled = false;
+                    retryBtn.style.display = 'block';
+                    checkStatusBtn.style.display = 'none';
+                    pollingActive = false;
+                    break;
+                    
+                case 'pending':
+                    showStatus('Payment is pending', 'pending',
+                        'Please check your phone and enter your M-Pesa PIN');
+                    checkStatusBtn.style.display = 'block';
+                    break;
+                    
+                default:
+                    showStatus('Payment status: ' + status, 'pending');
+                    checkStatusBtn.style.display = 'block';
+            }
+        }
+
         // Poll payment status
         async function pollPaymentStatus() {
             if (!checkoutRequestId) return;
 
+            pollingActive = true;
             let attempts = 0;
-            const maxAttempts = 30; // Poll for up to 2.5 minutes
+            const maxAttempts = 36; // Poll for up to 3 minutes
             const interval = 5000; // 5 seconds
 
             const poll = async () => {
+                if (!pollingActive) return;
+                
                 attempts++;
+                
+                // Update status with attempt info
+                if (attempts > 1) {
+                    showStatus('Waiting for payment confirmation...', 'pending',
+                        `Checking status (${attempts}/${maxAttempts}) - Please enter your M-Pesa PIN`);
+                }
 
                 try {
                     const response = await fetch(`${API_BASE}/api/payments/status/${checkoutRequestId}`);
@@ -373,29 +592,31 @@
                     if (data.success && data.payment) {
                         const status = data.payment.status;
 
-                        if (status === 'completed') {
-                            showStatus('Payment successful! Your booking is confirmed.', 'success');
-                            payBtn.disabled = true;
-                            return;
-                        } else if (status === 'failed') {
-                            showStatus(`Payment failed: ${data.payment.result_description || 'Please try again'}`, 'error');
-                            payBtn.disabled = false;
+                        if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+                            handlePaymentStatus(data.payment);
                             return;
                         }
                     }
 
-                    if (attempts < maxAttempts) {
+                    if (attempts < maxAttempts && pollingActive) {
                         setTimeout(poll, interval);
-                    } else {
-                        showStatus('Payment timeout. Please check your M-Pesa messages or try again.', 'error');
+                    } else if (pollingActive) {
+                        showStatus('Payment timeout', 'error', 
+                            'We couldn\'t confirm your payment. Please check your M-Pesa messages or click "Check Payment Status".');
                         payBtn.disabled = false;
+                        retryBtn.style.display = 'block';
+                        checkStatusBtn.style.display = 'block';
+                        pollingActive = false;
                     }
                 } catch (error) {
-                    if (attempts < maxAttempts) {
+                    if (attempts < maxAttempts && pollingActive) {
                         setTimeout(poll, interval);
-                    } else {
-                        showStatus('Failed to check payment status. Please verify in M-Pesa.', 'error');
+                    } else if (pollingActive) {
+                        showStatus('Failed to check payment status', 'error', 
+                            'Please click "Check Payment Status" to verify manually.');
                         payBtn.disabled = false;
+                        checkStatusBtn.style.display = 'block';
+                        pollingActive = false;
                     }
                 }
             };
@@ -403,9 +624,13 @@
             setTimeout(poll, interval);
         }
 
-        // Show status message
-        function showStatus(message, type) {
-            statusMessage.textContent = message;
+        // Show status message with optional details
+        function showStatus(message, type, details) {
+            let html = message;
+            if (details) {
+                html += `<div class="status-details">${details}</div>`;
+            }
+            statusMessage.innerHTML = html;
             statusMessage.className = `status ${type}`;
         }
     </script>

@@ -206,6 +206,54 @@ def test_payment_callback_payment_not_found(client):
     assert response.status_code == 404
 
 
+def test_payment_callback_cancelled(client, sample_user, sample_tour):
+    """Test payment callback for cancelled transaction (result code 1032)"""
+    from models import Payment, Booking, db
+
+    # Create a booking first
+    booking_response = client.post('/api/bookings/', json={
+        'user_id': sample_user,
+        'tour_id': sample_tour,
+        'tour_date': get_future_date(),
+        'number_of_guests': 1
+    })
+    booking_id = booking_response.get_json()['booking']['id']
+
+    # Create a payment record directly
+    from app import app
+    with app.app_context():
+        payment = Payment(
+            booking_id=booking_id,
+            merchant_request_id='test-merchant-id',
+            checkout_request_id='test-checkout-id-cancelled',
+            phone_number='254712345678',
+            amount=1500.0,
+            status='pending'
+        )
+        db.session.add(payment)
+        db.session.commit()
+
+    # Simulate callback for cancelled transaction (result code 1032)
+    response = client.post('/api/payments/callback', json={
+        'Body': {
+            'stkCallback': {
+                'MerchantRequestID': 'test-merchant-id',
+                'CheckoutRequestID': 'test-checkout-id-cancelled',
+                'ResultCode': 1032,
+                'ResultDesc': 'Request cancelled by user'
+            }
+        }
+    })
+    assert response.status_code == 200
+
+    # Verify the payment status is set to 'cancelled'
+    status_response = client.get('/api/payments/status/test-checkout-id-cancelled')
+    assert status_response.status_code == 200
+    data = status_response.get_json()
+    assert data['success'] is True
+    assert data['payment']['status'] == 'cancelled'
+
+
 def test_phone_number_formatting():
     """Test phone number formatting function"""
     from routes.payments import format_phone_number
