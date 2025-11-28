@@ -179,3 +179,71 @@ def test_booking_tour_not_found(client, sample_user):
     assert data['error_code'] == 'TOUR_NOT_FOUND'
     assert 'hint' in data
 
+
+def test_create_booking_no_data(client):
+    """Test creating booking with no data returns 400"""
+    response = client.post('/api/bookings/')
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'No data provided' in data['error']
+
+
+def test_create_booking_missing_fields(client, sample_user, sample_tour):
+    """Test creating booking with missing required fields"""
+    response = client.post('/api/bookings/', json={'user_id': sample_user})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'Missing required field' in data['error']
+
+
+def test_update_booking_no_data(client, sample_user, sample_tour):
+    """Test updating booking with no data returns 400"""
+    # Create a booking first
+    booking_data = {
+        'user_id': sample_user,
+        'tour_id': sample_tour,
+        'tour_date': (date.today() + timedelta(days=30)).strftime('%Y-%m-%d'),
+        'number_of_guests': 1
+    }
+    create_response = client.post('/api/bookings/', json=booking_data)
+    booking_id = create_response.get_json()['booking']['id']
+
+    # Try to update with no data
+    response = client.put(f'/api/bookings/{booking_id}')
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'No data provided' in data['error']
+
+
+def test_get_specific_booking(client, sample_user, sample_tour):
+    """Test getting a specific booking by ID"""
+    # Create a booking first
+    booking_data = {
+        'user_id': sample_user,
+        'tour_id': sample_tour,
+        'tour_date': (date.today() + timedelta(days=30)).strftime('%Y-%m-%d'),
+        'number_of_guests': 2
+    }
+    create_response = client.post('/api/bookings/', json=booking_data)
+    booking_id = create_response.get_json()['booking']['id']
+
+    # Get the specific booking
+    response = client.get(f'/api/bookings/{booking_id}')
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data['success'] is True
+    assert data['booking']['id'] == booking_id
+    assert data['booking']['tour']['title'] is not None
+
+
+def test_get_booking_not_found(client):
+    """Test getting a non-existent booking returns 404"""
+    response = client.get('/api/bookings/99999')
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data['success'] is False
+    assert 'not found' in data['error'].lower()
+

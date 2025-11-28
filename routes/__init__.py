@@ -172,7 +172,7 @@ def get_tour_by_title(title):
 def create_tour():
     """Create a new tour"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         
         if not data:
             return jsonify({'error': 'No data provided'}), 400
@@ -240,7 +240,7 @@ def update_tour(tour_id):
     """Update an existing tour"""
     try:
         tour = Tour.query.get_or_404(tour_id)
-        data = request.get_json()
+        data = request.get_json(silent=True)
         
         if not data:
             return jsonify({'error': 'No data provided'}), 400
@@ -453,7 +453,7 @@ def bulk_import_tours():
         JSON object with created, updated, and skipped tour counts
     """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         
         if not data:
             return jsonify({

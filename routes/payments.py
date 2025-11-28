@@ -411,7 +411,7 @@ def check_config_status():
 def initiate_payment():
     """Initiate M-Pesa STK Push payment with enhanced validation and error handling"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
 
         if not data:
             logger.warning("Payment initiation called with no data")
