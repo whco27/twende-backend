@@ -161,9 +161,15 @@ with app.app_context():
                         db.session.add(new_tour)
                         created_count += 1
                     except Exception as tour_error:
+                        # Expunge any invalid object from the session
+                        db.session.rollback()
                         logger.warning(f"Failed to create tour '{tour_data.get('title', 'unknown')}': {str(tour_error)}")
-                db.session.commit()
-                logger.info(f"Auto-seeded {created_count} tours successfully")
+                try:
+                    db.session.commit()
+                    logger.info(f"Auto-seeded {created_count} tours successfully")
+                except Exception as commit_error:
+                    db.session.rollback()
+                    logger.error(f"Failed to commit auto-seeded tours: {str(commit_error)}")
             else:
                 logger.info(f"Database already contains {tour_count} tours. Skipping auto-seed.")
     except Exception as e:
