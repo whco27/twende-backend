@@ -61,7 +61,6 @@ def check_database_health():
     """
     try:
         db.session.execute(db.text("SELECT 1"))
-        db.session.commit()
         return True, None
     except Exception as e:
         db.session.rollback()
@@ -651,9 +650,11 @@ def db_status():
             user_count = User.query.count()
             table_exists = True
         except ProgrammingError:
+            db.session.rollback()
             user_count = 0
             table_exists = False
         except Exception as table_error:
+            db.session.rollback()
             logger.warning(f"Error checking users table: {str(table_error)}")
             user_count = 0
             table_exists = False
@@ -670,6 +671,7 @@ def db_status():
         }), 200
         
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Database status check failed: {type(e).__name__}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
